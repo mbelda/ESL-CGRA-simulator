@@ -5,8 +5,8 @@ import csv
 from kernels import *
 
 # CGRA from left to right, top to bottom
-N_ROWS      = 4
-N_COLS      = 4
+N_ROWS      = 3
+N_COLS      = 3
 INSTR_SIZE  = N_ROWS+1
 MAX_COL     = N_COLS - 1
 MAX_ROW     = N_ROWS - 1
