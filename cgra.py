@@ -4,6 +4,12 @@ import csv
 
 from kernels import *
 
+N_ROWS = 4
+N_COLS = 3
+INSTR_SIZE = N_ROWS + 1
+MAX_COL = N_COLS - 1
+MAX_ROW = N_ROWS - 1
+
 PRINT_OUTS  = 1
 
 MAX_32b = 0xFFFFFFFF
@@ -21,7 +27,6 @@ class INSTR:
 def ker_parse( data ):
     instrs = int(len(data)/( INSTR_SIZE  )) # Always have a CSV with as many csv-columns as CGA-columns. Each instruction starts with the instruction timestamp i nthe first column. The next instruction must be immediately after the last row of this instruction.
     return [ INSTR( data[r_i*INSTR_SIZE:(r_i+1)*INSTR_SIZE][0:] ) for r_i in range(instrs) ]
-
 
 def print_out( prs, outs, insts, ops, reg ):
     if PRINT_OUTS:
@@ -53,7 +58,7 @@ def print_out( prs, outs, insts, ops, reg ):
 
 class CGRA:
     def __init__( self, kernel, memory, inputs, outputs ):
-        self.cells      = [[ PE( self, c,r) for r in range(N_ROWS)] for c in range(N_COLS)]
+        self.cells      = [[ PE( self, c, r) for r in range(N_ROWS)] for c in range(N_COLS)]
         self.instrs     = ker_parse( kernel )
         self.memory     = memory
         self.inputs     = inputs
@@ -77,7 +82,11 @@ class CGRA:
 
     def step( self, prs="ROUT" ):
         for r in range(N_ROWS):
+            #print("r ", r)
             for c in range(N_COLS):
+                #print("c ", c)
+                #print("len(self.cells) ", len(self.cells))
+                #print("len(self.cells[r]) ", len(self.cells[r]))
                 self.cells[r][c].update()
         if PRINT_OUTS: print("Instr = ", self.cycles, "(",self.instr2exec,")")
         for r in range(N_ROWS):
@@ -343,23 +352,11 @@ class PE:
     ops_jump    = { 'JUMP'      : '' }
     ops_exit    = { 'EXIT'      : '' }
 
-def run( kernel, version="", rows=4, cols=4, pr="ROUT", limit=100 ):
+def run( kernel, version="", pr="ROUT", limit=100 ):
     ker = []
     inp = []
     oup = []
     mem = []
-
-    global N_ROWS
-    global N_COLS
-    global INSTR_SIZE
-    global MAX_COL
-    global MAX_ROW
-
-    N_ROWS = rows
-    N_COLS = cols
-    INSTR_SIZE = N_ROWS+1
-    MAX_COL = N_COLS - 1
-    MAX_ROW = N_ROWS - 1
 
     with open( kernel + "/"+FILENAME_INSTR+version+EXT, 'r') as f:
         for row in csv.reader(f): ker.append(row)
