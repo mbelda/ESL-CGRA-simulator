@@ -58,7 +58,13 @@ def print_out( prs, outs, insts, ops, reg ):
 
 class CGRA:
     def __init__( self, kernel, memory, inputs, outputs ):
-        self.cells      = [[ PE( self, c, r) for r in range(N_ROWS)] for c in range(N_COLS)]
+        self.cells = []
+        for r in range(N_ROWS):
+            list = []
+            for c in range(N_COLS):
+                list.append( PE( self, r, c) )
+            self.cells.append(list)
+        #self.cells     = [[ PE( self, r, c) for r in range(N_ROWS)] for c in range(N_COLS)]
         self.instrs     = ker_parse( kernel )
         self.memory     = memory
         self.inputs     = inputs
@@ -87,6 +93,7 @@ class CGRA:
                 #print("c ", c)
                 #print("len(self.cells) ", len(self.cells))
                 #print("len(self.cells[r]) ", len(self.cells[r]))
+                #print(len(self.cells))
                 self.cells[r][c].update()
         if PRINT_OUTS: print("Instr = ", self.cycles, "(",self.instr2exec,")")
         for r in range(N_ROWS):
