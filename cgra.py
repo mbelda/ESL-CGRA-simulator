@@ -239,14 +239,19 @@ class PE:
         elif self.op in self.ops_lwd:
             des = instr[1]
             incr = self.fetch_val(instr[2])
-            ret = self.parent.load_direct( self.col, incr )
+            # 32bit element
+            pos_idx = int(incr/4)
+            #print(pos_idx)
+            ret = self.parent.load_direct( self.col, pos_idx )
             if des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_swd:
             val = self.fetch_val( instr[1] )
             incr = self.fetch_val(instr[2])
-            self.parent.store_direct( self.col, val, incr )
+            # 32bit element
+            pos_idx = int(incr/4)
+            self.parent.store_direct( self.col, val, pos_idx )
 
         elif self.op in self.ops_lwi:
             des = instr[1]
