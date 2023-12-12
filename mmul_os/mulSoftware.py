@@ -1,29 +1,49 @@
-import numpy as np
+def crear_matriz(filas, columnas):
+    matriz = [[i*columnas + j + 1 for j in range(columnas)] for i in range(filas)]
+    return matriz
 
-# Define matrices A and B
-A = np.array([
-    [1, 2, 3, 4, 5],
-    [6, 7, 8, 9, 10],
-    [11, 12,13,14,15],
-    [16,17,18,19,20],
-    [21, 22, 23, 24,25]
-])
+def mostrar_matriz(matriz):
+    for fila in matriz:
+        print(fila)
 
-B = np.array([
-    [10, 20, 30, 40],
-    [50, 60, 70, 80],
-    [90, 100, 110, 120],
-    [130, 140, 150, 160],
-    [170, 180, 190, 200]
-])
+def multiplicar_matrices(matriz_a, matriz_b):
+    resultado = [[0 for _ in range(len(matriz_b[0]))] for _ in range(len(matriz_a))]
 
-# Perform matrix multiplication
-C = np.dot(A, B)
+    for i in range(len(matriz_a)):
+        for j in range(len(matriz_b[0])):
+            for k in range(len(matriz_b)):
+                resultado[i][j] += matriz_a[i][k] * matriz_b[k][j]
 
-# Print the result
-print("Matrix A:")
-print(A)
-print("\nMatrix B:")
-print(B)
-print("\nResultant Matrix C:")
-print(C)
+    return resultado
+
+def main():
+    filas_a = int(input("Ingrese el número de filas para la matriz A: "))
+    columnas_a = int(input("Ingrese el número de columnas para la matriz A: "))
+
+    filas_b = int(input("Ingrese el número de filas para la matriz B: "))
+    columnas_b = int(input("Ingrese el número de columnas para la matriz B: "))
+
+    if columnas_a != filas_b:
+        print("No se pueden multiplicar matrices con estas dimensiones.")
+        return
+
+    # Crear matrices A y B
+    matriz_a = crear_matriz(filas_a, columnas_a)
+    matriz_b = crear_matriz(filas_b, columnas_b)
+
+    # Mostrar matrices A y B
+    print("\nMatriz A:")
+    mostrar_matriz(matriz_a)
+
+    print("\nMatriz B:")
+    mostrar_matriz(matriz_b)
+
+    # Multiplicar matrices A y B
+    matriz_resultado = multiplicar_matrices(matriz_a, matriz_b)
+
+    # Mostrar resultado
+    print("\nResultado de la multiplicación:")
+    mostrar_matriz(matriz_resultado)
+
+if __name__ == "__main__":
+    main()
