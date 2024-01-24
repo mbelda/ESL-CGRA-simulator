@@ -4,6 +4,8 @@ __email__       = "lara.orlandic@epfl.ch"
 
 import numpy as np
 from enum import Enum
+from ctypes import c_int32
+import re
 
 # Local data register (DREG) sizes of specialized slots
 LCU_NUM_DREG = 4
@@ -32,6 +34,14 @@ class LCU_ALU_OPS(int, Enum):
     BLT = 12
     JUMP = 13
     EXIT = 14
+
+class LCU_DEST_REGS(int, Enum):
+    '''Available ALU registers to store ALU result'''
+    R0 = 0
+    R1 = 1
+    R2 = 2
+    R3 = 3
+    SRF = 4
 
 class LCU_MUXA_SEL(int, Enum):
     '''Input A to LCU ALU'''
@@ -177,3 +187,388 @@ class LCU_IMEM_WORD:
         muxa_sel = int(self.muxa_sel,2)
         
         return imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel
+
+
+class LCU:
+    def __init__(self):
+        self.regs       = {'R0':0, 'R1':0, 'R2':0, 'R3':0 } # Parametrize
+        self.imem       = LCU_IMEM()
+        self.nInstr     = 0
+    
+    def sadd( val1, val2 ):
+        return c_int32( val1 + val2 ).value
+
+    def ssub( val1, val2 ):
+        return c_int32( val1 - val2 ).value
+
+    def sll( val1, val2 ):
+        return c_int32(val1 << val2).value
+
+    def srl( val1, val2 ):
+        interm_result = (c_int32(val1).value & MAX_32b)
+        return c_int32(interm_result >> val2).value
+
+    def sra( val1, val2 ):
+        return c_int32(val1 >> val2).value
+
+    def lor( val1, val2 ):
+        return c_int32( val1 | val2).value
+
+    def land( val1, val2 ):
+        return c_int32( val1 & val2).value
+
+    def lxor( val1, val2 ):
+        return c_int32( val1 ^ val2).value
+
+    def beq( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
+
+    def bne( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
+
+    def bgepd( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
+
+    def blt( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
+
+    def beqr( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
+
+    def bner( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
+
+    def bger( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
+
+    def bltr( self,  val1, val2, branch ):
+        self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
+
+    def nop(self):
+        pass # Intentional
+
+    def exit(self):
+        pass
+
+    def jump(self, imm):
+        pass
+
+    def parseDestArith(self, rd):
+        # Define the regular expression pattern
+        r_pattern = re.compile(r'^R(\d+)$')
+        srf_pattern = re.compile(r'^SRF\((\d+)\)$')
+
+        # Check if the input matches the 'R' pattern
+        r_match = r_pattern.match(rd)
+        if r_match:
+            return LCU_DEST_REGS[rd], -1
+
+        # Check if the input matches the 'SRF' pattern
+        srf_match = srf_pattern.match(rd)
+        if srf_match:
+            return LCU_DEST_REGS["SRF"], srf_match.group(1)
+
+        return None, -1
+
+    # Returns the value for muxA and the number of the srf accessed (-1 if it isn't accessed)
+    def parseMuxAArith(self, rs):
+        # Define the regular expression pattern
+        r_pattern = re.compile(r'^R(\d+)$')
+        srf_pattern = re.compile(r'^SRF\((\d+)\)$')
+        zero_pattern = re.compile(r'^ZERO$')
+        last_pattern = re.compile(r'^LAST$')
+
+        # Check if the input matches the 'R' pattern
+        r_match = r_pattern.match(rs)
+        if r_match:
+            return LCU_MUXA_SEL[rs], -1
+
+        # Check if the input matches the 'SRF' pattern
+        srf_match = srf_pattern.match(rs)
+        if srf_match:
+            return LCU_MUXA_SEL["SRF"], srf_match.group(1)
+        
+        # Check if the input matches the 'ZERO' pattern
+        zero_match = zero_pattern.match(rs)
+        if zero_match:
+            return LCU_MUXA_SEL[rs], -1
+
+        # Check if the input matches the 'LAST' pattern
+        last_match = last_pattern.match(rs)
+        if last_match:
+            return LCU_MUXA_SEL[rs], -1
+
+        return None, -1
+
+    def parseMuxBArith(self, rs):
+        # Define the regular expression pattern
+        r_pattern = re.compile(r'^R(\d+)$')
+        srf_pattern = re.compile(r'^SRF\((\d+)\)$')
+        zero_pattern = re.compile(r'^ZERO$')
+        last_pattern = re.compile(r'^LAST$')
+        one_pattern = re.compile(r'^ONE$')
+
+        # Check if the input matches the 'R' pattern
+        r_match = r_pattern.match(rs)
+        if r_match:
+            return LCU_MUXB_SEL[rs], -1
+
+        # Check if the input matches the 'SRF' pattern
+        srf_match = srf_pattern.match(rs)
+        if srf_match:
+            return LCU_MUXB_SEL["SRF"], srf_match.group(1)
+        
+        # Check if the input matches the 'ZERO' pattern
+        zero_match = zero_pattern.match(rs)
+        if zero_match:
+            return LCU_MUXB_SEL[rs], -1
+
+        # Check if the input matches the 'LAST' pattern
+        last_match = last_pattern.match(rs)
+        if last_match:
+            return LCU_MUXB_SEL[rs], -1
+        
+        # Check if the input matches the 'ONE' pattern
+        one_match = one_pattern.match(rs)
+        if one_match:
+            return LCU_MUXB_SEL[rs], -1
+
+        return None, -1
+
+    def asmToHex(self, instr):
+        space_instr = instr.replace(",", " ")
+        split_instr = [word for word in space_instr.split(" ") if word]
+        try:
+            op      = split_instr[0]
+        except:
+            op      = split_instr
+
+        if op in self.lcu_arith_ops:
+            alu_op = LCU_ALU_OPS[op]
+            # Expect 3 operands: rd/srf, rs/srf/zero/one, rt/srf/zero/imm
+            try:
+                rd = split_instr[1]
+                rs = split_instr[2]
+                rt = split_instr[3]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
+            dest, srf_str_index = self.parseDestArith(rd)
+            muxB, srf_muxB_index = self.parseMuxBArith(rs) # Change order so that always the ONE value can be written in the first operand in the assembly
+            muxA, srf_read_index = self.parseMuxAArith(rt)
+
+            if dest == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for first operand (dest).")
+            
+            if muxB == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the second operand (muxB).")
+
+            if muxA == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the third operand (muxA).")
+            
+            if srf_muxB_index != -1:
+                if srf_read_index != -1 and srf_muxB_index != srf_read_index:
+                    raise ValueError("Instruction not valid for LCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.") 
+                srf_read_index = srf_muxB_index
+
+            if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
+
+            br_mode = 0
+            if srf_str_index == -1: # Writting on a  local reg
+                rf_we = 1
+                rf_wsel = dest
+            else:
+                rf_wsel = 0
+                rf_we = 0
+            imm = 0
+
+            # Add hexadecimal instruction
+            self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return srf_read_index, srf_str_index
+        
+        if op in self.lcu_arith_i_ops:
+            alu_op = LCU_ALU_OPS[op[:-1]]
+            # Expect 3 operands: rd/srf, rs/srf/zero/one, imm
+            try:
+                rd = split_instr[1]
+                rs = split_instr[2]
+                rt = split_instr[3]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
+            dest, srf_str_index = self.parseDestArith(rd)
+            muxA = LCU_MUXA_SEL["IMM"]
+            muxB, srf_read_index = self.parseMuxBArith(rs)
+
+            if dest == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for first operand (dest).")
+            
+            if muxB == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the second operand (muxB).")
+            
+            try:
+                imm = int(rt) 
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected an inmediate as third operand.")
+
+            if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
+
+            if srf_str_index == -1: # Writting on a  local reg
+                rf_we = 1
+                rf_wsel = dest
+            else:
+                rf_wsel = 0
+                rf_we = 0
+
+            # Add hexadecimal instruction
+            self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return srf_read_index, srf_str_index
+
+        if op in self.lcu_rcmode_ops:
+            alu_op = LCU_ALU_OPS[op]
+            # Expect 1 operand: imm
+            try:
+                imm_str = split_instr[1]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 1 operand.")
+            try:
+                imm = int(imm_str) 
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected an inmediate as an operand.")
+            
+            br_mode = 1
+            # Add hexadecimal instruction
+            self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return -1, -1
+
+        if op in self.lcu_branch_ops:
+            alu_op = LCU_ALU_OPS[op]
+            # Expect 3 operands: rs/srf/zero/one, rs/srf/zero/imm, imm
+            try:
+                rs = split_instr[1]
+                rt = split_instr[2]
+                imm_str = split_instr[3]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
+            muxA, srf_muxA_index = self.parseMuxAArith(rt)
+            muxB, srf_muxB_index = self.parseMuxBArith(rs)
+            if op == "BGEPD":
+                srf_str_index = srf_muxB_index
+
+            if muxB == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the first operand (muxB).")
+            
+            if muxA == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the second operand (muxA).")
+            
+            try:
+                imm = int(imm_str) 
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected an inmediate as third operand.")
+
+            if srf_muxA_index != -1 and srf_muxA_index != srf_read_index:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
+            srf_read_index = srf_muxA_index
+
+            br_mode = 0
+            # Add hexadecimal instruction
+            self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return srf_read_index, srf_str_index
+
+        if op in self.lcu_jump_ops:
+            alu_op = LCU_ALU_OPS[op]
+            # Expect 2 operands: rs/srf/zero/one, rs/srf/zero/imm
+            try:
+                rs = split_instr[1]
+                rt = split_instr[2]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 2 operands.")
+            muxB, srf_muxB_index = self.parseMuxBArith(rs) # Change order so that always the ONE value can be written in the first operand in the assembly
+            muxA, srf_read_index = self.parseMuxAArith(rt)
+            imm = 0
+
+            if muxB == None:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the first operand (muxB).")
+            
+            if muxA == None:
+                try:
+                    imm = int(rt)
+                except:
+                    raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the second operand (muxA).")
+                muxA = LCU_MUXA_SEL["IMM"]
+            
+            if srf_muxB_index != -1:
+                if srf_read_index != -1 and srf_muxB_index != srf_read_index:
+                    raise ValueError("Instruction not valid for LCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.") 
+                srf_read_index = srf_muxB_index
+
+            # Add hexadecimal instruction
+            self.imem.set_params(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return srf_read_index, -1
+
+        if op in self.lcu_nop_ops:
+            alu_op = LCU_ALU_OPS[op]
+            # Expect 0 operands
+            if len(split_instr) > 1:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Nop does not expect operands.")
+            self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return -1, -1
+        
+        if op in self.lcu_exit_ops:
+            alu_op = LCU_ALU_OPS[op]
+            # Expect 0 operands
+            if len(split_instr) > 1:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". Exit does not expect operands.")
+            self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
+            self.nInstr+=1
+            # Return read and write srf indexes
+            return -1, -1
+        
+        raise ValueError("Instruction not valid for LCU: " + instr + ". Operation not recognised.")
+
+    lcu_arith_ops   = { 'SADD'      : sadd,
+                        'SSUB'      : ssub,
+                        'SLL'       : sll,
+                        'SRL'       : srl,
+                        'SRA'       : sra,
+                        'LAND'      : land,
+                        'LOR'       : lor,
+                        'LXOR'      : lxor }
+        
+    lcu_arith_i_ops = { 'SADDI'      : sadd,
+                        'SSUBI'      : ssub,
+                        'SLLI'       : sll,
+                        'SRLI'       : srl,
+                        'SRAI'       : sra,
+                        'LANDI'      : land,
+                        'LORI'       : lor,
+                        'LXORI'      : lxor }
+
+    lcu_rcmode_ops  = { 'BEQR'       : beqr,
+                        'BNER'       : bner,
+                        'BLTR'       : bltr,
+                        'BGER'       : bger }
+
+    lcu_branch_ops  = { 'BEQ'       : beq,
+                        'BNE'       : bne,
+                        'BLT'       : blt,
+                        'BGEPD'       : bgepd }
+
+    lcu_nop_ops     = { 'NOP'       : nop }
+    lcu_exit_ops    = { 'EXIT'      : exit }
+
+    lcu_jump_ops    = { 'JUMP'      : jump }
+
+    
