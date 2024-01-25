@@ -7,6 +7,7 @@ from enum import Enum
 from ctypes import c_int32
 import re
 
+
 # Local data register (DREG) sizes of specialized slots
 LCU_NUM_DREG = 4
 
@@ -73,7 +74,7 @@ class LCU_IMEM:
         self.IMEM = np.zeros(LCU_NUM_CREG,dtype="S{0}".format(LCU_IMEM_WIDTH))
         # Initialize kernel memory with default instruction
         default_word = LCU_IMEM_WORD()
-        for i, instruction in enumerate(self.IMEM):
+        for i in range(LCU_NUM_CREG):
             self.IMEM[i] = default_word.get_word()
     
     def set_word(self, kmem_word, pos):
@@ -194,6 +195,7 @@ class LCU:
         self.regs       = {'R0':0, 'R1':0, 'R2':0, 'R3':0 } # Parametrize
         self.imem       = LCU_IMEM()
         self.nInstr     = 0
+        self.default_word = LCU_IMEM_WORD().get_word()
     
     def sadd( val1, val2 ):
         return c_int32( val1 + val2 ).value
@@ -429,7 +431,7 @@ class LCU:
             return srf_read_index, srf_str_index
 
         if op in self.lcu_rcmode_ops:
-            alu_op = LCU_ALU_OPS[op]
+            alu_op = LCU_ALU_OPS[op[:-1]]
             # Expect 1 operand: imm
             try:
                 imm_str = split_instr[1]
@@ -458,6 +460,8 @@ class LCU:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
             muxA, srf_muxA_index = self.parseMuxAArith(rt)
             muxB, srf_muxB_index = self.parseMuxBArith(rs)
+
+            srf_str_index = -1
             if op == "BGEPD":
                 srf_str_index = srf_muxB_index
 
