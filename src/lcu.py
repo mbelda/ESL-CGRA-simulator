@@ -17,6 +17,9 @@ LCU_NUM_CREG = 64
 # Widths of instructions of each specialized slot in bits
 LCU_IMEM_WIDTH = 20
 
+# Number of scalar registers shared on the column
+SRF_N_REGS = 8
+
 # LCU IMEM word decoding
 class LCU_ALU_OPS(int, Enum):
     '''LCU ALU operation codes'''
@@ -132,8 +135,7 @@ class LCU_IMEM:
         else:
             print("No LCU registers are being written")
 
-        
-        
+            
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
         return(hex(int(self.IMEM[pos],2)))
@@ -288,6 +290,7 @@ class LCU:
         # Check if the input matches the 'SRF' pattern
         srf_match = srf_pattern.match(rs)
         if srf_match:
+            i = srf_match.group(1)
             return LCU_MUXA_SEL["SRF"], srf_match.group(1)
         
         # Check if the input matches the 'ZERO' pattern
@@ -358,6 +361,9 @@ class LCU:
             muxB, srf_muxB_index = self.parseMuxBArith(rs) # Change order so that always the ONE value can be written in the first operand in the assembly
             muxA, srf_read_index = self.parseMuxAArith(rt)
 
+            if srf_read_index > SRF_N_REGS or srf_muxB_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
+
             if dest == None:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for first operand (dest).")
             
@@ -402,6 +408,9 @@ class LCU:
             dest, srf_str_index = self.parseDestArith(rd)
             muxA = LCU_MUXA_SEL["IMM"]
             muxB, srf_read_index = self.parseMuxBArith(rs)
+
+            if srf_read_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
 
             if dest == None:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for first operand (dest).")
@@ -461,6 +470,9 @@ class LCU:
             muxA, srf_muxA_index = self.parseMuxAArith(rt)
             muxB, srf_muxB_index = self.parseMuxBArith(rs)
 
+            if srf_muxB_index > SRF_N_REGS or srf_muxA_index > SRF_N_REGS:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
+
             srf_str_index = -1
             if op == "BGEPD":
                 srf_str_index = srf_muxB_index
@@ -498,6 +510,9 @@ class LCU:
             muxB, srf_muxB_index = self.parseMuxBArith(rs) # Change order so that always the ONE value can be written in the first operand in the assembly
             muxA, srf_read_index = self.parseMuxAArith(rt)
             imm = 0
+
+            if srf_muxB_index > SRF_N_REGS or srf_read_index > SRF_N_REGS:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
 
             if muxB == None:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the first operand (muxB).")
