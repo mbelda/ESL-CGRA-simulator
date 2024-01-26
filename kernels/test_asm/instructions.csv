@@ -1,0 +1,12 @@
+LCU,LSU,MXCU,RC0,RC1,RC2,RC3,KMEM
+"SADD R1, ONE, ZERO","SADD R0, ONE, ONE/LD.VWR VWR_A",nop,nop,nop,nop,nop,nop
+"SSUBI R1, R2, 7","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+NOP,"SADD SRF(5), SRF(5), ONE/LD.VWR SRF",nop,nop,nop,nop,nop,nop
+EXIT,"SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"JUMP R0, R1","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"JUMP R3, 7","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"SLL R3, SRF(4), ZERO","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"LORI SRF(4), SRF(4), 7","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"BEQ R0, R2, 34","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"BGEPD R1, ZERO, 5","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop
+"BEQR 14","SADD R0, SRF(5), ONE/SH.IL.UP",nop,nop,nop,nop,nop,nop

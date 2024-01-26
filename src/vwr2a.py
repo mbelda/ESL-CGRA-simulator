@@ -26,6 +26,7 @@ FILENAME_INSTR  = "instructions"
 class CGRA:
     def __init__(self):
         self.lcus = [LCU() for _ in range(CGRA_COLS)]
+        self.lsus = [LSU() for _ in range(CGRA_COLS)]
         
     def compileAsm(self, kernel_path, version=""):
         # String buffers
@@ -56,10 +57,14 @@ class CGRA:
         # Parse every instruction
         for col in range(CGRA_COLS):
             lcu = self.lcus[col]
+            lsu = self.lsus[col]
             for i in range(len(LCU_instr[col])):
+                # For LCU
                 LCU_inst = LCU_instr[col][i]
-                srf_read_idx_lsu, srf_str_idx_lsu = lcu.asmToHex(LCU_inst)
+                srf_read_idx_lcu, srf_str_idx_lcu = lcu.asmToHex(LCU_inst)
                 # For LSU
+                LSU_inst = LSU_instr[col][i]
+                srf_read_idx_lsu, srf_str_idx_lsu = lsu.asmToHex(LSU_inst)
                 # For RCs
                 # Check SRF reads/writes
                 # For MXCU
@@ -86,6 +91,24 @@ class CGRA:
                     file.write("  {0},\n".format(hex(int(self.lcus[col].default_word,2))))
                 else:
                     file.write("  {0}\n".format(hex(int(self.lcus[col].default_word,2))))
+                fill_counter+=1
+            file.write("};\n\n\n")
+
+            # Write LSU bitstream
+            file.write("uint32_t dsip_lsu_imem_bitstream[DSIP_IMEM_SIZE] = {\n")
+            fill_counter = 0
+            for col in range(CGRA_COLS): # Think how to control more than one column
+                for i in range(LSU_NUM_CREG):
+                    fill_counter+=1
+                    if i<IMEM_N_LINES-1:
+                        file.write("  {0},\n".format(self.lsus[col].imem.get_word_in_hex(i)))
+                    else:
+                        file.write("  {0}\n".format(self.lsus[col].imem.get_word_in_hex(i)))
+            while fill_counter < IMEM_N_LINES:
+                if fill_counter<IMEM_N_LINES-1:
+                    file.write("  {0},\n".format(hex(int(self.lsus[col].default_word,2))))
+                else:
+                    file.write("  {0}\n".format(hex(int(self.lsus[col].default_word,2))))
                 fill_counter+=1
             file.write("};\n\n\n")
 
