@@ -7,18 +7,16 @@ from enum import Enum
 from ctypes import c_int32
 import re
 
+SRF_N_REGS = 8
 
 # Local data register (DREG) sizes of specialized slots
-LCU_NUM_DREG = 4
+LCU_NUM_DREG = 4 
 
 # Configuration register (CREG) / instruction memory sizes of specialized slots
 LCU_NUM_CREG = 64
 
 # Widths of instructions of each specialized slot in bits
 LCU_IMEM_WIDTH = 20
-
-# Number of scalar registers shared on the column
-SRF_N_REGS = 8
 
 # LCU IMEM word decoding
 class LCU_ALU_OPS(int, Enum):
@@ -194,7 +192,7 @@ class LCU_IMEM_WORD:
 
 class LCU:
     def __init__(self):
-        self.regs       = {'R0':0, 'R1':0, 'R2':0, 'R3':0 } # Parametrize
+        self.regs       = [0 for _ in range(LCU_NUM_DREG)]
         self.imem       = LCU_IMEM()
         self.nInstr     = 0
         self.default_word = LCU_IMEM_WORD().get_word()
@@ -257,7 +255,7 @@ class LCU:
     def jump(self, imm):
         pass
 
-    def parseDestArith(self, rd):
+    def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')
         srf_pattern = re.compile(r'^SRF\((\d+)\)$')
@@ -265,17 +263,23 @@ class LCU:
         # Check if the input matches the 'R' pattern
         r_match = r_pattern.match(rd)
         if r_match:
-            return LCU_DEST_REGS[rd], -1
+            ret = None
+            try:
+                ret = LCU_DEST_REGS[rd]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed register must be betwwen 0 and " + str(len(self.regs) -1) + ".")
+            return ret, -1
+
 
         # Check if the input matches the 'SRF' pattern
         srf_match = srf_pattern.match(rd)
         if srf_match:
-            return LCU_DEST_REGS["SRF"], srf_match.group(1)
+            return LCU_DEST_REGS["SRF"], int(srf_match.group(1))
 
         return None, -1
 
     # Returns the value for muxA and the number of the srf accessed (-1 if it isn't accessed)
-    def parseMuxAArith(self, rs):
+    def parseMuxAArith(self, rs, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')
         srf_pattern = re.compile(r'^SRF\((\d+)\)$')
@@ -285,13 +289,18 @@ class LCU:
         # Check if the input matches the 'R' pattern
         r_match = r_pattern.match(rs)
         if r_match:
-            return LCU_MUXA_SEL[rs], -1
+            ret = None
+            try:
+                ret = LCU_MUXA_SEL[rs]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed register must be betwwen 0 and " + str(len(self.regs) -1) + ".")
+            return ret, -1
 
         # Check if the input matches the 'SRF' pattern
         srf_match = srf_pattern.match(rs)
         if srf_match:
             i = srf_match.group(1)
-            return LCU_MUXA_SEL["SRF"], srf_match.group(1)
+            return LCU_MUXA_SEL["SRF"], int(srf_match.group(1))
         
         # Check if the input matches the 'ZERO' pattern
         zero_match = zero_pattern.match(rs)
@@ -305,7 +314,7 @@ class LCU:
 
         return None, -1
 
-    def parseMuxBArith(self, rs):
+    def parseMuxBArith(self, rs, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')
         srf_pattern = re.compile(r'^SRF\((\d+)\)$')
@@ -316,12 +325,17 @@ class LCU:
         # Check if the input matches the 'R' pattern
         r_match = r_pattern.match(rs)
         if r_match:
-            return LCU_MUXB_SEL[rs], -1
+            ret = None
+            try:
+                ret = LCU_MUXB_SEL[rs]
+            except:
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed register must be betwwen 0 and " + str(len(self.regs) -1) + ".")
+            return ret, -1
 
         # Check if the input matches the 'SRF' pattern
         srf_match = srf_pattern.match(rs)
         if srf_match:
-            return LCU_MUXB_SEL["SRF"], srf_match.group(1)
+            return LCU_MUXB_SEL["SRF"], int(srf_match.group(1))
         
         # Check if the input matches the 'ZERO' pattern
         zero_match = zero_pattern.match(rs)
@@ -357,12 +371,12 @@ class LCU:
                 rt = split_instr[3]
             except:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
-            dest, srf_str_index = self.parseDestArith(rd)
-            muxB, srf_muxB_index = self.parseMuxBArith(rs) # Change order so that always the ONE value can be written in the first operand in the assembly
-            muxA, srf_read_index = self.parseMuxAArith(rt)
+            dest, srf_str_index = self.parseDestArith(rd, instr)
+            muxB, srf_muxB_index = self.parseMuxBArith(rs, instr) # Change order so that always the ONE value can be written in the first operand in the assembly
+            muxA, srf_read_index = self.parseMuxAArith(rt, instr)
 
             if srf_read_index > SRF_N_REGS or srf_muxB_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
-                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
+                raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
 
             if dest == None:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for first operand (dest).")
@@ -405,9 +419,9 @@ class LCU:
                 rt = split_instr[3]
             except:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
-            dest, srf_str_index = self.parseDestArith(rd)
+            dest, srf_str_index = self.parseDestArith(rd, instr)
             muxA = LCU_MUXA_SEL["IMM"]
-            muxB, srf_read_index = self.parseMuxBArith(rs)
+            muxB, srf_read_index = self.parseMuxBArith(rs, instr)
 
             if srf_read_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
@@ -467,8 +481,8 @@ class LCU:
                 imm_str = split_instr[3]
             except:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
-            muxA, srf_muxA_index = self.parseMuxAArith(rt)
-            muxB, srf_muxB_index = self.parseMuxBArith(rs)
+            muxA, srf_muxA_index = self.parseMuxAArith(rt, instr)
+            muxB, srf_muxB_index = self.parseMuxBArith(rs, instr)
 
             if srf_muxB_index > SRF_N_REGS or srf_muxA_index > SRF_N_REGS:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
@@ -507,8 +521,8 @@ class LCU:
                 rt = split_instr[2]
             except:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 2 operands.")
-            muxB, srf_muxB_index = self.parseMuxBArith(rs) # Change order so that always the ONE value can be written in the first operand in the assembly
-            muxA, srf_read_index = self.parseMuxAArith(rt)
+            muxB, srf_muxB_index = self.parseMuxBArith(rs, instr) # Change order so that always the ONE value can be written in the first operand in the assembly
+            muxA, srf_read_index = self.parseMuxAArith(rt, instr)
             imm = 0
 
             if srf_muxB_index > SRF_N_REGS or srf_read_index > SRF_N_REGS:
