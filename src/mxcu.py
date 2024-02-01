@@ -4,6 +4,10 @@ __email__       = "lara.orlandic@epfl.ch"
 
 import numpy as np
 from enum import Enum
+from ctypes import c_int32
+import re
+
+SRF_N_REGS = 8
 
 # Local data register (DREG) sizes of specialized slots
 MXCU_NUM_DREG = 8
@@ -26,7 +30,7 @@ class MXCU_ALU_OPS(int, Enum):
     LOR = 6
     LXOR = 7
 
-class MXCU_MUXA_SEL(int, Enum):
+class MXCU_MUX_SEL(int, Enum):
     '''Input A to MXCU ALU'''
     R0 = 0
     R1 = 1
@@ -40,11 +44,11 @@ class MXCU_MUXA_SEL(int, Enum):
     ZERO = 9
     ONE = 10
     TWO = 11
-    HALF_VWR_SIZE = 12
-    LAST_VWR = 13
+    HALF = 12
+    LAST = 13
 
-class MXCU_MUXB_SEL(int, Enum):
-    '''Input B to MXCU ALU'''
+class MXCU_DEST_REGS(int, Enum):
+    '''Destination registers'''
     R0 = 0
     R1 = 1
     R2 = 2
@@ -54,11 +58,6 @@ class MXCU_MUXB_SEL(int, Enum):
     R6 = 6
     R7 = 7
     SRF = 8
-    ZERO = 9
-    ONE = 10
-    TWO = 11
-    HALF_VWR_SIZE = 12
-    LAST_VWR = 13
 
 class ALU_SRF_WRITE(int, Enum):
     '''Select which specialized slot's ALU output gets written to the chosen SRF register'''
@@ -89,7 +88,7 @@ class MXCU_IMEM:
         '''Set the IMEM index at integer pos to the binary imem word'''
         self.IMEM[pos] = np.binary_repr(kmem_word,width=MXCU_IMEM_WIDTH)
     
-    def set_params(self, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUXB_SEL.R0, muxa_sel=MXCU_MUXA_SEL.R0, pos=0):
+    def set_params(self, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUX_SEL.R0, muxa_sel=MXCU_MUX_SEL.R0, pos=0):
         '''Set the IMEM index at integer pos to the configuration parameters.
         See MXCU_IMEM_WORD initializer for implementation details.
         NOTE: vwr_row_we should be an 4-element array of bool/int values representing a one-hot vector of row write enable bits
@@ -125,10 +124,10 @@ class MXCU_IMEM:
         for op in MXCU_ALU_OPS:
             if op.value == alu_op:
                 alu_opcode = op.name
-        for sel in MXCU_MUXA_SEL:
+        for sel in MXCU_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_res = sel.name
-        for sel in MXCU_MUXB_SEL:
+        for sel in MXCU_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_res = sel.name
         if alu_opcode == MXCU_ALU_OPS.NOP:
@@ -143,13 +142,13 @@ class MXCU_IMEM:
         
         
     def get_word_in_hex(self, pos):
-        '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
+        '''Get the hexadecimal representation of the word at index pos in the MXCU config IMEM'''
         return(hex(int(self.IMEM[pos],2)))
         
     
         
 class MXCU_IMEM_WORD:
-    def __init__(self, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUXB_SEL.R0, muxa_sel=MXCU_MUXA_SEL.R0):
+    def __init__(self, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUX_SEL.R0, muxa_sel=MXCU_MUX_SEL.R0):
         '''Generate a binary mxcu instruction word from its configuration paramerers:
         
            -   vwr_row_we: One-hot encoded write enable to the 4 rows (also known as slices) of the VWR.
@@ -160,8 +159,8 @@ class MXCU_IMEM_WORD:
            -   rf_wsel: Select one of 8 MXCU local registers to write to. Note that some registers have special jobs. See vwr2a_ISA doc.
            -   rf_we: Enable writing to local registers
            -   alu_op: Perform one of the ALU operations listed in the MXCU_ALU_OPS enum
-           -   muxb_sel: Select input B to ALU (see MXCU_MUXB_SEL enum for options)
-           -   muxa_sel: Select input A to ALU (see MXCU_MUXA_SEL enum for options)
+           -   muxb_sel: Select input B to ALU (see MXCU_MUX_SEL enum for options)
+           -   muxa_sel: Select input A to ALU (see MXCU_MUX_SEL enum for options)
         
         '''
         binary_vwr_row_we = ""
@@ -216,3 +215,242 @@ class MXCU_IMEM_WORD:
             one_hot_vwr_row_we.append(int(self.vwr_row_we[i:i+1],2))
         
         return one_hot_vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel
+    
+
+class MXCU:
+    def __init__(self):
+        self.regs       = [0 for _ in range(MXCU_NUM_DREG)]
+        self.imem       = MXCU_IMEM()
+        self.nInstr     = 0
+        self.default_word = MXCU_IMEM_WORD().get_word()
+    
+    def sadd( val1, val2 ):
+        return c_int32( val1 + val2 ).value
+
+    def ssub( val1, val2 ):
+        return c_int32( val1 - val2 ).value
+
+    def sll( val1, val2 ):
+        return c_int32(val1 << val2).value
+
+    def srl( val1, val2 ):
+        interm_result = (c_int32(val1).value & MAX_32b)
+        return c_int32(interm_result >> val2).value
+
+    def lor( val1, val2 ):
+        return c_int32( val1 | val2).value
+
+    def land( val1, val2 ):
+        return c_int32( val1 & val2).value
+
+    def lxor( val1, val2 ):
+        return c_int32( val1 ^ val2).value
+
+    def nop(self):
+        pass # Intentional
+
+    def load_vwr(self):
+        pass
+
+    def store_vwr(self):
+        pass
+
+    def shilup(self):
+        pass
+    
+    def shillo(self):
+        pass
+
+    def sheven(self):
+        pass
+
+    def shodd(self):
+        pass
+
+    def shbreup(self):
+        pass
+
+    def shbrelo(self):
+        pass
+
+    def shcshiftup(self):
+        pass
+
+    def shcshiftlo(self):
+        pass
+
+
+    def parseDestArith(self, rd, instr):
+        # Define the regular expression pattern
+        r_pattern = re.compile(r'^R(\d+)$')
+        srf_pattern = re.compile(r'^SRF\((\d+)\)$')
+
+        # Check if the input matches the 'R' pattern
+        r_match = r_pattern.match(rd)
+        if r_match:
+            ret = None
+            try:
+                ret = MXCU_DEST_REGS[rd]
+            except:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". The accessed register must be betwwen 0 and " + str(len(self.regs) -1) + ".")
+            return ret, -1
+
+        # Check if the input matches the 'SRF' pattern
+        srf_match = srf_pattern.match(rd)
+        if srf_match:
+            return MXCU_DEST_REGS["SRF"], int(srf_match.group(1))
+
+        return None, -1
+
+    def parseMuxArith(self, rs, instr):
+        # Define the regular expression pattern
+        r_pattern = re.compile(r'^R(\d+)$')
+        srf_pattern = re.compile(r'^SRF\((\d+)\)$')
+        zero_pattern = re.compile(r'^ZERO$')
+        one_pattern = re.compile(r'^ONE$')
+        two_pattern = re.compile(r'^TWO$')
+        half_pattern = re.compile(r'^HALF$')
+        last_pattern = re.compile(r'^LAST$')
+
+        # Check if the input matches the 'R' pattern
+        r_match = r_pattern.match(rs)
+        if r_match:
+            ret = None
+            try:
+                ret = MXCU_MUX_SEL[rs]
+            except:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". The accessed register must be betwwen 0 and " + str(MXCU_NUM_DREG -1) + ".")
+            return ret, -1
+
+        # Check if the input matches the 'SRF' pattern
+        srf_match = srf_pattern.match(rs)
+        if srf_match:
+            return MXCU_MUX_SEL["SRF"], int(srf_match.group(1))
+        
+        # Check if the input matches the 'ZERO' pattern
+        zero_match = zero_pattern.match(rs)
+        if zero_match:
+            return MXCU_MUX_SEL[rs], -1
+        
+        # Check if the input matches the 'ONE' pattern
+        one_match = one_pattern.match(rs)
+        if one_match:
+            return MXCU_MUX_SEL[rs], -1
+        
+        # Check if the input matches the 'TWO' pattern
+        two_match = two_pattern.match(rs)
+        if two_match:
+            return MXCU_MUX_SEL[rs], -1
+        
+        # Check if the input matches the 'HALF' pattern
+        half_match = half_pattern.match(rs)
+        if half_match:
+            return MXCU_MUX_SEL[rs], -1
+        
+        # Check if the input matches the 'LAST' pattern
+        last_match = last_pattern.match(rs)
+        if last_match:
+            return MXCU_MUX_SEL[rs], -1
+
+        return None, -1
+    
+    
+    def asmToHex(self, instr, srf_sel, srf_we, alu_srf_write, vwr_row_we, vwr_sel):
+        # Set default value for params
+        rf_wsel=0
+        rf_we=0
+        alu_op=MXCU_ALU_OPS.NOP
+        muxA=MXCU_MUX_SEL.R0
+        muxB=MXCU_MUX_SEL.R0
+
+        # Parse the MXCU instruction
+        space_instr = instr.replace(",", " ")
+        split_instr = [word for word in space_instr.split(" ") if word]
+        try:
+            op      = split_instr[0]
+        except:
+            op      = split_instr
+        
+        if op not in self.mxcu_arith_ops and op not in self.mxcu_nop_ops:
+            raise ValueError("Instruction not valid for MXCU: " + instr + ". Operation not recognised.")
+
+        if op in self.mxcu_arith_ops:
+            alu_op = MXCU_ALU_OPS[op]
+            # Expect 3 operands: rd/srf, rs/srf/zero/one/two/half/last, rt/srf/zero/one/two/half/last
+            try:
+                rd = split_instr[1]
+                rs = split_instr[2]
+                rt = split_instr[3]
+            except:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected 3 operands.")
+            dest, srf_str_index = self.parseDestArith(rd, instr)
+            muxA, srf_read_index = self.parseMuxArith(rs, instr)
+            muxB, srf_muxB_index = self.parseMuxArith(rt, instr)
+
+            if srf_read_index > SRF_N_REGS or srf_muxB_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
+
+            if dest == None:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected another format for first operand (dest).")
+            
+            if muxB == None:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected another format for the second operand (muxB).")
+
+            if muxA == None:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected another format for the third operand (muxA).")
+            
+            if srf_muxB_index != -1:
+                if srf_read_index != -1 and srf_muxB_index != srf_read_index:
+                    raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.") 
+                srf_read_index = srf_muxB_index
+
+            if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
+
+            if srf_str_index == -1: # Writting on a  local reg
+                rf_we = 1
+                rf_wsel = dest
+            else:
+                # Check that MXCU is the only one trying to write to SRF
+                if srf_we != 0:
+                    raise ValueError("Instructions not valid for this cycle of the CGRA. Detected multiple writes to the SRF.")
+                srf_we = 1
+                # TODO: Check that the srf_sel is correct because it needs to be checked for writes and reads on the mxcu and the rest
+                alu_srf_write = ALU_SRF_WRITE["MXCU"]
+            
+            if srf_sel != -1 and srf_str_index != -1 and srf_sel != srf_str_index:
+                raise ValueError("Instruction not valid for the CGRA. Expected only writes to the same reg of the SRF.")
+            if srf_sel != -1 and srf_read_index != -1 and srf_sel != srf_read_index: 
+                raise ValueError("Instruction not valid for the CGRA. Expected only reads to the same reg of the SRF.")
+            
+            if srf_sel == -1:
+                if srf_str_index != -1:
+                    srf_sel = srf_str_index
+                else:
+                    srf_sel = srf_read_index
+            
+
+        if op in self.mxcu_nop_ops:
+            alu_op = MXCU_ALU_OPS[op]
+            # Expect 0 operands
+            if len(split_instr) > 1:
+                raise ValueError("Instruction not valid for MXCU: " + instr + ". Nop does not expect operands.")
+        
+        # If after everything no one writes, the value should be 0
+        if srf_sel == -1:
+            srf_sel = 0
+        
+        # Add hexadecimal instruction
+        self.imem.set_params(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+        self.nInstr+=1
+        
+
+    mxcu_arith_ops   = { 'SADD'      : sadd,
+                        'SSUB'      : ssub,
+                        'SLL'       : sll,
+                        'SRL'       : srl,
+                        'LAND'      : land,
+                        'LOR'       : lor,
+                        'LXOR'      : lxor }
+        
+    mxcu_nop_ops     = { 'NOP'       : nop }
