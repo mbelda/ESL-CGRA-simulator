@@ -7,7 +7,7 @@ from enum import Enum
 from ctypes import c_int32
 import re
 
-SRF_N_REGS = 8
+from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
 RC_NUM_DREG = 2
@@ -164,6 +164,10 @@ class RC_IMEM_WORD:
     
     def get_word(self):
         return self.word
+    
+    def get_word_in_hex(self):
+        '''Get the hexadecimal representation of the word at index pos in the RC config IMEM'''
+        return(hex(int(self.word, 2)))
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
@@ -444,22 +448,26 @@ class RC:
                 rf_we = 0
 
             op_mode = 0
+            muxf_sel=RC_MUXF_SEL.OWN
 
             # Add hexadecimal instruction
-            self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=RC_MUXF_SEL.OWN, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            self.nInstr+=1
+            #self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes and the flag to write on a vwr
-            return srf_read_index, srf_str_index, vwr_str
+            hex_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+            return srf_read_index, srf_str_index, vwr_str, hex_word
         
         if op in self.rc_nop_ops:
             alu_op = RC_ALU_OPS[op]
             # Expect 0 operands
             if len(split_instr) > 1:
                 raise ValueError("Instruction not valid for RC: " + instr + ". Nop does not expect operands.")
-            self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
-            self.nInstr+=1
+            
+            #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return -1, -1, -1
+            hex_word = RC_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
+            return -1, -1, -1, hex_word
         
         if op in self.rc_flag_ops:
             if op == "SFGA":
@@ -491,10 +499,11 @@ class RC:
                 rf_we = 0
 
             # Add hexadecimal instruction
-            self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, pos=self.nInstr)
-            self.nInstr+=1
+            #self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes and the flag to write on a vwr
-            return -1, srf_str_index, vwr_str
+            hex_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op).get_word_in_hex()
+            return -1, srf_str_index, vwr_str, hex_word
         
 
         raise ValueError("Instruction not valid for RC: " + instr + ". Operation not recognised.")

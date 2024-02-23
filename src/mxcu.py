@@ -7,7 +7,7 @@ from enum import Enum
 from ctypes import c_int32
 import re
 
-SRF_N_REGS = 8
+from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
 MXCU_NUM_DREG = 8
@@ -179,6 +179,10 @@ class MXCU_IMEM_WORD:
     
     def get_word(self):
         return self.word
+
+    def get_word_in_hex(self):
+        '''Get the hexadecimal representation of the word at index pos in the MXCU config IMEM'''
+        return(hex(int(self.word, 2)))
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
@@ -440,8 +444,11 @@ class MXCU:
             srf_sel = 0
         
         # Add hexadecimal instruction
-        self.imem.set_params(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-        self.nInstr+=1
+        #self.imem.set_params(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+        #self.nInstr+=1
+        
+        hex_word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+        return hex_word
         
 
     mxcu_arith_ops   = { 'SADD'      : sadd,

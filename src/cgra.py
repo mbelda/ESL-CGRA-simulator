@@ -10,9 +10,7 @@ N_ROW      = 4
 N_COL      = 2
 N_VWR_PER_COL = 3
 
-# Scratchpad memory configuration
-SP_NWORDS = 128
-SP_NLINES = 64
+
 
 
 #### SPECIALIZED SLOTS: Sub-modules of the VWR2A top module that each perform their own purpos and have their own ISA ######

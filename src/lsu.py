@@ -7,7 +7,7 @@ from enum import Enum
 from ctypes import c_int32
 import re
 
-SRF_N_REGS = 8
+from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
 LSU_NUM_DREG = 8
@@ -186,6 +186,10 @@ class LSU_IMEM_WORD:
     
     def get_word(self):
         return self.word
+    
+    def get_word_in_hex(self):
+        '''Get the hexadecimal representation of the word at index pos in the LSU config IMEM'''
+        return(hex(int(self.word, 2)))
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
@@ -474,10 +478,11 @@ class LSU:
             raise ValueError("Instruction not valid for LSU: " + instructions[1] + ". Memory operation not recognised.")    
 
         # Add hexadecimal instruction
-        self.imem.set_params(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-        self.nInstr+=1
+        #self.imem.set_params(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+        #self.nInstr+=1
         # Return read and write srf indexes
-        return srf_read_index, srf_str_index
+        hex_word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+        return srf_read_index, srf_str_index, hex_word
 
     lsu_arith_ops   = { 'SADD'      : sadd,
                         'SSUB'      : ssub,

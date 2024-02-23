@@ -7,7 +7,7 @@ from enum import Enum
 from ctypes import c_int32
 import re
 
-SRF_N_REGS = 8
+from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
 LCU_NUM_DREG = 4 
@@ -165,6 +165,10 @@ class LCU_IMEM_WORD:
     def get_word(self):
         return self.word
     
+    def get_word_in_hex(self):
+        '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
+        return(hex(int(self.word, 2)))
+    
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
         self.word = word
@@ -196,6 +200,7 @@ class LCU:
         self.imem       = LCU_IMEM()
         self.nInstr     = 0
         self.default_word = LCU_IMEM_WORD().get_word()
+        self.iregs = [self.default_word in range(LCU_NUM_CREG)]
     
     def sadd( val1, val2 ):
         return c_int32( val1 + val2 ).value
@@ -405,10 +410,11 @@ class LCU:
             imm = 0
 
             # Add hexadecimal instruction
-            self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            self.nInstr+=1
-            # Return read and write srf indexes
-            return srf_read_index, srf_str_index
+            # self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            # self.nInstr+=1
+            # Return read and write srf indexes and the hex translation
+            hex_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+            return srf_read_index, srf_str_index, hex_word
         
         if op in self.lcu_arith_i_ops:
             alu_op = LCU_ALU_OPS[op[:-1]]
@@ -448,10 +454,11 @@ class LCU:
                 rf_we = 0
 
             # Add hexadecimal instruction
-            self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            self.nInstr+=1
+            #self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return srf_read_index, srf_str_index
+            hex_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+            return srf_read_index, srf_str_index, hex_word
 
         if op in self.lcu_rcmode_ops:
             alu_op = LCU_ALU_OPS[op[:-1]]
@@ -467,10 +474,11 @@ class LCU:
             
             br_mode = 1
             # Add hexadecimal instruction
-            self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, pos=self.nInstr)
-            self.nInstr+=1
+            #self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return -1, -1
+            hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode).get_word_in_hex()
+            return -1, -1, hex_word
 
         if op in self.lcu_branch_ops:
             alu_op = LCU_ALU_OPS[op]
@@ -508,10 +516,11 @@ class LCU:
 
             br_mode = 0
             # Add hexadecimal instruction
-            self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            self.nInstr+=1
+            #self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return srf_read_index, srf_str_index
+            hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+            return srf_read_index, srf_str_index, hex_word
 
         if op in self.lcu_jump_ops:
             alu_op = LCU_ALU_OPS[op]
@@ -544,30 +553,35 @@ class LCU:
                 srf_read_index = srf_muxB_index
 
             # Add hexadecimal instruction
-            self.imem.set_params(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            self.nInstr+=1
+            #self.imem.set_params(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return srf_read_index, -1
+            hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
+            return srf_read_index, -1, hex_word
 
         if op in self.lcu_nop_ops:
             alu_op = LCU_ALU_OPS[op]
             # Expect 0 operands
             if len(split_instr) > 1:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Nop does not expect operands.")
-            self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
-            self.nInstr+=1
+            
+            #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return -1, -1
+            hex_word = LCU_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
+            return -1, -1, hex_word
         
         if op in self.lcu_exit_ops:
             alu_op = LCU_ALU_OPS[op]
             # Expect 0 operands
             if len(split_instr) > 1:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Exit does not expect operands.")
-            self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
-            self.nInstr+=1
+            
+            #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
+            #self.nInstr+=1
             # Return read and write srf indexes
-            return -1, -1
+            hex_word = LCU_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
+            return -1, -1, hex_word
         
         raise ValueError("Instruction not valid for LCU: " + instr + ". Operation not recognised.")
 

@@ -4,6 +4,8 @@ __email__       = "lara.orlandic@epfl.ch"
 
 import numpy as np
 
+from .spm import SPM_NLINES
+
 # Configuration register (CREG) / instruction memory sizes of specialized slots
 KER_CONF_N_REG = 16
 
@@ -11,13 +13,14 @@ KER_CONF_N_REG = 16
 KER_CONF_IMEM_WIDTH = 21
 
 # KERNEL CONFIGURATION #
-class KER_CONF:
+class KMEM_IMEM:
     '''Kernel memory: Keeps track of which kernels are loaded into the IMEM of VWR2A'''
     def __init__(self):
         self.IMEM = np.zeros(KER_CONF_N_REG,dtype="S{0}".format(KER_CONF_IMEM_WIDTH))
         # Initialize kernel memory with zeros
         for i, instruction in enumerate(self.IMEM):
             self.IMEM[i] = np.binary_repr(0,width=KER_CONF_IMEM_WIDTH)
+        
     
     def set_word(self, kmem_word, pos):
         '''Set the IMEM index at integer pos to the binary kmem word'''
@@ -25,19 +28,26 @@ class KER_CONF:
         
         self.IMEM[pos] = np.binary_repr(kmem_word,width=KER_CONF_IMEM_WIDTH)
     
-    def set_params(self, num_instructions=0, imem_add_start=0, column_usage=0, srf_spm_addres=0, pos=1):
+    def set_params(self, num_instructions=0, imem_add_start=0, column_usage=[True, False], srf_spm_addres=0, pos=1):
         '''Set the IMEM index at integer pos to the configuration parameters.
         See KMEM_WORD initializer for implementation details.
         '''
         
         assert (pos>0), "Kernel word 0 is reserved; need to pick a position >0 and <16"
         assert (num_instructions>0) & (num_instructions<64), "Invalid kernel; number of instructions is either negative or too big"
-        assert (column_usage>0), "The column attribute must be one-hot encoded"
+        assert (len(column_usage) == 2), "Column usage must be a 2-boolean array specifying which columns are used"
         
+        # Parse column usage
+        col_one_hot = 1 # Only col 0
+        if column_usage[0] and column_usage[1]:
+            col_one_hot = 3 # Both cols
+        elif column_usage[1]:
+            col_one_hot = 2 # Only second col
+
         # Note: The number of instructions encoded in the kmem word is always one less than the actual number of instructions
         n_instr_kmem = num_instructions-1
         
-        kmem_word = KMEM_WORD(n_instr_kmem, imem_add_start, column_usage, srf_spm_addres)
+        kmem_word = KMEM_WORD(n_instr_kmem, imem_add_start, col_one_hot, srf_spm_addres)
         self.IMEM[pos] = kmem_word.get_word()
     
     def get_params(self, pos):
@@ -108,3 +118,27 @@ class KMEM_WORD:
         spm_add = int(self.srf_spm_addres, 2)
         
         return n_instr, imem_add, col, spm_add
+
+class KINFO:
+    def __init__(self, num_instructions, imem_add_start, column_usage, srf_spm_address, pos):
+        self.nInstr = num_instructions
+        self.imem_add_start = imem_add_start
+        self.column_usage = column_usage
+        self.srf_spm_address = srf_spm_address
+        self.pos = pos
+
+class KMEM:
+    def __init__(self):
+        self.default_word = KMEM_WORD().get_word()
+        self.imem         = KMEM_IMEM()
+        self.kernelsInfo  = [None for _ in range(KER_CONF_N_REG)]
+    
+    def addKernel(self, num_instructions=0, imem_add_start=0, column_usage=[True, False], srf_spm_addres=0, nKernel=1):
+        assert(len(column_usage) == 2), "The format for the column usage must be a boolean array with two elements. For example, [True, True]."
+        assert(srf_spm_addres >= 0 and srf_spm_addres < SPM_NLINES), "The SPM line number for the SRF initial position is out of bounds. It must be between 0 and " + str(SPM_NLINES-1) + ", both included."
+        assert(nKernel > 0 and nKernel < KER_CONF_N_REG), "The number of kernel is out of bounds. It must be greater than 0 and less than " + str(KER_CONF_N_REG) + "."
+
+        kinfo = KINFO(num_instructions, imem_add_start, column_usage, srf_spm_addres, nKernel)
+        self.kernelsInfo[nKernel] = kinfo
+        self.imem.set_params(num_instructions=num_instructions, imem_add_start=imem_add_start, column_usage=column_usage, srf_spm_addres=srf_spm_addres, pos=nKernel)
+        
