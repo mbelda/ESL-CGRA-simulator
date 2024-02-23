@@ -8,7 +8,7 @@ class SPM:
     
     def setLine(self, nline, vec):
         assert(nline >= 0 & nline < SPM_NLINES), "SPM: Number of SPM line out of bounds. It should be >= 0 and < " + str(SPM_NLINES) + "."
-        assert(len(vec) <= SPM_NWORDS), "SPM: Vector too long for a SPM line. Maximum " + str(SPM_NWORDS) + " per line."
+        assert(len(vec) == SPM_NWORDS), "SPM: Vector should have " + str(SPM_NWORDS) + " elements."
         self.lines[nline] = vec
     
     def getLine(self, nline):

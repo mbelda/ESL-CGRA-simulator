@@ -19,6 +19,15 @@ from .rc import RC_NUM_CREG
 class SIMULATOR:
     def __init__(self):
         self.vwr2a = CGRA()
+    
+    def kernel_config(self, column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number):
+        self.vwr2a.kernel_config(column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number)
+
+    def setSPMLine(self, nline, vector):
+        self.vwr2a.setSPMLine(nline, vector)
+    
+    def loadSPMData(self, data):
+        self.vwr2a.loadSPMData(data)
 
     def run(self, nKernel, display_ops=[[] for _ in range(CGRA_ROWS + 4)]): # +4 -> (LCU, LSU, MXCU, SRF)
         # Decode the kernel number of instructions and which ones they are

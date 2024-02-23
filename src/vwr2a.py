@@ -21,6 +21,12 @@ class CGRA:
     def setSPMLine(self, nline, vector):
         self.spm.setLine(nline, vector)
     
+    def loadSPMData(self, data):
+        nline = 0
+        for vector in data:
+            self.spm.setLine(nline, vector)
+            nline+=1
+    
     def kernel_config(self, column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number):
         self.kmem.addKernel(num_instructions=kernel_nInstr, imem_add_start=imem_add_start, column_usage=column_usage, srf_spm_addres=srf_spm_addres, nKernel=kernel_number)
         
