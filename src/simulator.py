@@ -129,6 +129,7 @@ class SIMULATOR:
             lsu = self.vwr2a.lsus[col]
             rcs = self.vwr2a.rcs[col]
             mxcu = self.vwr2a.mxcus[col]
+            srf = self.vwr2a.srfs[col]
 
             for i in range(len(LCU_instr[col])):
                 # For LCU
@@ -148,7 +149,10 @@ class SIMULATOR:
                     srf_read_idx_rc[row], srf_str_idx_rc[row], vwr_str_rc[row], hex_word = rcs[row].asmToHex(RCs_inst)
                     self.vwr2a.imem.rcs_imem[row][imem_addr] = hex_word
                 
-                # ---------------------- Check reads/writes to SRF/VWR ---------------------- 
+                # Check SRF reads/writes
+                srf_sel, srf_we, alu_srf_write = srf.checkReadsWrites(srf_read_idx_lcu, srf_read_idx_lsu, srf_read_idx_rc, srf_str_idx_lcu, srf_str_idx_lsu, srf_str_idx_rc)
+                
+                # Check vwr reads/writes
                 # Enable the write to a VWR for each RC
                 vwr_row_we = [0 if num == -1 else 1 for num in vwr_str_rc]
                 # All the RCs should write to the same VWR in each cycle
@@ -158,56 +162,12 @@ class SIMULATOR:
                 if -1 in unique_vwr_str_rc:
                     unique_vwr_str_rc = unique_vwr_str_rc[unique_vwr_str_rc != -1]
                 if len(unique_vwr_str_rc) > 1:
-                    raise ValueError("Instructions not valid for this cycle of the CGRA. Detected writes from different RCs to different VWRs.")
+                    raise Exception("Instructions not valid for this cycle of the CGRA. Detected writes from different RCs to different VWRs.")
                 if len(unique_vwr_str_rc) > 0 and unique_vwr_str_rc[0] not in {0,1,2}:
-                    raise ValueError("Instructions not valid for this cycle of the CGRA. The selected VWR to write is not properly recognised.")
+                    raise Exception("Instructions not valid for this cycle of the CGRA. The selected VWR to write is not properly recognised.")
                 if len(unique_vwr_str_rc) > 0:
                     vwr_sel = unique_vwr_str_rc[0] # This is already prepared to be 0, 1 or 2, but checked                   
-
-                # Check: Only RC0 should be able to write to SRF
-                if np.any(np.array(srf_str_idx_rc[1:]) != -1):
-                    raise ValueError("Instructions not valid for this cycle of the CGRA. Only the RC on row 0 can write to the SRF.")
                 
-                # Check: Only reads to the same SRF register can be made by every unit
-                srf_sel = -1 # No one reads
-                all_read_srf = srf_read_idx_rc
-                all_read_srf.append(srf_read_idx_lcu)
-                all_read_srf.append(srf_read_idx_lsu)
-                all_read_srf = np.array(all_read_srf)
-                unique_vector_read_srf = np.unique(all_read_srf)
-                if -1 in unique_vector_read_srf:
-                    unique_vector_read_srf = unique_vector_read_srf[unique_vector_read_srf != -1]
-                if len(unique_vector_read_srf) > 1:
-                    raise ValueError("Instructions not valid for this cycle of the CGRA. Detected reads to different registers of the SRF.")
-                if np.any(all_read_srf != -1):
-                    srf_sel = (all_read_srf[all_read_srf != -1])[0]
-
-                # Check: Only one write can be done to a register of the SRF
-                srf_we = 0 # Default
-                all_str_srf = srf_str_idx_rc
-                all_str_srf.append(srf_str_idx_lcu)
-                all_str_srf.append(srf_str_idx_lsu)
-                all_str_srf = np.array(all_str_srf)
-                
-                str_idx = all_str_srf[all_str_srf != -1]
-                if len(str_idx) > 1:
-                    raise ValueError("Instructions not valid for this cycle of the CGRA. Detected multiple writes to the SRF.")
-                if len(str_idx) > 0:
-                    srf_we = 1
-
-                # Check: The reads and writes to the SRF are made to the same register
-                if srf_we != 0 and srf_sel != -1 and srf_sel != str_idx[0]:
-                    raise ValueError("Instructions not valid for this cycle of the CGRA. Detected reads and writes to different registers of the SRF.")
-                
-                # Set who writes to the SRF
-                alu_srf_write = 0 # Default
-                if srf_str_idx_rc[0] != -1:
-                    alu_srf_write = 1 # RC0
-                if srf_str_idx_lcu != -1:
-                    alu_srf_write = 0 # LCU
-                if srf_str_idx_lsu != -1:
-                    alu_srf_write = 3 # LSU
-
                 # For MXCU (checks SRF write of itself)
                 MXCU_inst = MXCU_instr[col][i]
                 hex_word = mxcu.asmToHex(MXCU_inst, srf_sel, srf_we, alu_srf_write, vwr_row_we, vwr_sel)

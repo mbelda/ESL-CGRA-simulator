@@ -453,9 +453,6 @@ class LCU:
                 rf_wsel = 0
                 rf_we = 0
 
-            # Add hexadecimal instruction
-            #self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            #self.nInstr+=1
             # Return read and write srf indexes
             hex_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
             return srf_read_index, srf_str_index, hex_word
@@ -473,9 +470,6 @@ class LCU:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected an inmediate as an operand.")
             
             br_mode = 1
-            # Add hexadecimal instruction
-            #self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, pos=self.nInstr)
-            #self.nInstr+=1
             # Return read and write srf indexes
             hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode).get_word_in_hex()
             return -1, -1, hex_word
@@ -495,29 +489,27 @@ class LCU:
             if srf_muxB_index > SRF_N_REGS or srf_muxA_index > SRF_N_REGS:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be betwwen 0 and " + str(SRF_N_REGS -1) + ".")
 
-            srf_str_index = -1
-            if op == "BGEPD":
-                srf_str_index = srf_muxB_index
-
             if muxB == None:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the first operand (muxB).")
             
             if muxA == None:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for the second operand (muxA).")
+
+            srf_str_index = -1
+            if op == "BGEPD":
+                srf_str_index = srf_muxB_index
             
             try:
                 imm = int(imm_str) 
             except:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected an inmediate as third operand.")
 
-            if srf_muxA_index != -1 and srf_muxA_index != srf_read_index:
+            if srf_muxA_index != -1 and srf_muxA_index != srf_str_index:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
             srf_read_index = srf_muxA_index
 
             br_mode = 0
-            # Add hexadecimal instruction
-            #self.imem.set_params(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            #self.nInstr+=1
+    
             # Return read and write srf indexes
             hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
             return srf_read_index, srf_str_index, hex_word
@@ -564,9 +556,7 @@ class LCU:
             # Expect 0 operands
             if len(split_instr) > 1:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Nop does not expect operands.")
-            
-            #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
-            #self.nInstr+=1
+
             # Return read and write srf indexes
             hex_word = LCU_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
             return -1, -1, hex_word
@@ -577,8 +567,6 @@ class LCU:
             if len(split_instr) > 1:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Exit does not expect operands.")
             
-            #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
-            #self.nInstr+=1
             # Return read and write srf indexes
             hex_word = LCU_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
             return -1, -1, hex_word

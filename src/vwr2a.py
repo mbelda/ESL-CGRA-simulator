@@ -3,6 +3,7 @@
 from src import *
 from .params import *
 from .spm import SPM
+from .srf import SRF
 
 
 class CGRA:
@@ -17,6 +18,7 @@ class CGRA:
         self.spm = SPM()
         self.kmem = KMEM()
         self.imem = IMEM()
+        self.srfs = [SRF() for _ in range(CGRA_COLS)]
 
     def setSPMLine(self, nline, vector):
         self.spm.setLine(nline, vector)
