@@ -28,21 +28,13 @@ class KMEM_IMEM:
         
         self.IMEM[pos] = np.binary_repr(kmem_word,width=KER_CONF_IMEM_WIDTH)
     
-    def set_params(self, num_instructions=0, imem_add_start=0, column_usage=[True, False], srf_spm_addres=0, pos=1):
+    def set_params(self, num_instructions=0, imem_add_start=0, col_one_hot=1, srf_spm_addres=0, pos=1):
         '''Set the IMEM index at integer pos to the configuration parameters.
         See KMEM_WORD initializer for implementation details.
         '''
         
         assert (pos>0), "Kernel word 0 is reserved; need to pick a position >0 and <16"
         assert (num_instructions>0) & (num_instructions<64), "Invalid kernel; number of instructions is either negative or too big"
-        assert (len(column_usage) == 2), "Column usage must be a 2-boolean array specifying which columns are used"
-        
-        # Parse column usage
-        col_one_hot = 1 # Only col 0
-        if column_usage[0] and column_usage[1]:
-            col_one_hot = 3 # Both cols
-        elif column_usage[1]:
-            col_one_hot = 2 # Only second col
 
         # Note: The number of instructions encoded in the kmem word is always one less than the actual number of instructions
         n_instr_kmem = num_instructions-1
@@ -120,10 +112,10 @@ class KMEM_WORD:
         return n_instr, imem_add, col, spm_add
 
 class KINFO:
-    def __init__(self, num_instructions, imem_add_start, column_usage, srf_spm_address, pos):
+    def __init__(self, num_instructions, imem_add_start, col_one_hot, srf_spm_address, pos):
         self.nInstr = num_instructions
         self.imem_add_start = imem_add_start
-        self.column_usage = column_usage
+        self.col_one_hot = col_one_hot
         self.srf_spm_address = srf_spm_address
         self.pos = pos
 
@@ -133,12 +125,11 @@ class KMEM:
         self.imem         = KMEM_IMEM()
         self.kernelsInfo  = [None for _ in range(KER_CONF_N_REG)]
     
-    def addKernel(self, num_instructions=0, imem_add_start=0, column_usage=[True, False], srf_spm_addres=0, nKernel=1):
-        assert(len(column_usage) == 2), "The format for the column usage must be a boolean array with two elements. For example, [True, True]."
+    def addKernel(self, num_instructions=0, imem_add_start=0, col_one_hot=1, srf_spm_addres=0, nKernel=1):
         assert(srf_spm_addres >= 0 and srf_spm_addres < SPM_NLINES), "The SPM line number for the SRF initial position is out of bounds. It must be between 0 and " + str(SPM_NLINES-1) + ", both included."
         assert(nKernel > 0 and nKernel < KER_CONF_N_REG), "The number of kernel is out of bounds. It must be greater than 0 and less than " + str(KER_CONF_N_REG) + "."
 
-        kinfo = KINFO(num_instructions, imem_add_start, column_usage, srf_spm_addres, nKernel)
+        kinfo = KINFO(num_instructions, imem_add_start, col_one_hot, srf_spm_addres, nKernel)
         self.kernelsInfo[nKernel] = kinfo
-        self.imem.set_params(num_instructions=num_instructions, imem_add_start=imem_add_start, column_usage=column_usage, srf_spm_addres=srf_spm_addres, pos=nKernel)
+        self.imem.set_params(num_instructions=num_instructions, imem_add_start=imem_add_start, col_one_hot=col_one_hot, srf_spm_addres=srf_spm_addres, pos=nKernel)
         

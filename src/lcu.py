@@ -73,7 +73,7 @@ class LCU_IMEM:
     '''Instruction memory of the Loop Control Unit'''
     def __init__(self):
         self.IMEM = np.zeros(LCU_NUM_CREG,dtype="S{0}".format(LCU_IMEM_WIDTH))
-        # Initialize kernel memory with default instruction
+        # Initialize memory with default instruction
         default_word = LCU_IMEM_WORD()
         for i in range(LCU_NUM_CREG):
             self.IMEM[i] = default_word.get_word()
@@ -140,9 +140,10 @@ class LCU_IMEM:
         
     
         
-class LCU_IMEM_WORD:
-    def __init__(self, imm=0, rf_wsel=0, rf_we=0, alu_op=LCU_ALU_OPS.NOP, br_mode=0, muxb_sel=LCU_MUXB_SEL.R0, muxa_sel=LCU_MUXA_SEL.R0):
-        '''Generate a binary lcu instruction word from its configuration paramerers:
+class LCU_IMEM_WORD:      
+
+    def __init__(self, hex_word=None, imm=0, rf_wsel=0, rf_we=0, alu_op=LCU_ALU_OPS.NOP, br_mode=0, muxb_sel=LCU_MUXB_SEL.R0, muxa_sel=LCU_MUXA_SEL.R0):
+        '''Generate a binary lcu instruction word from its configuration paramerers or from a given hex word:
         
            -   imm: Immediate value to use for ALU operations or address to branch to
            -   rf_wsel: Select one of four LCU registers to write to
@@ -153,14 +154,26 @@ class LCU_IMEM_WORD:
            -   muxa_sel: Select input A to ALU (see LCU_MUXA_SEL enum for options)
         
         '''
-        self.imm = np.binary_repr(imm, width=6)
-        self.rf_wsel = np.binary_repr(rf_wsel, width=2)
-        self.rf_we = np.binary_repr(rf_we,width=1)
-        self.alu_op = np.binary_repr(alu_op,4)
-        self.br_mode = np.binary_repr(br_mode,1)
-        self.muxb_sel = np.binary_repr(muxb_sel,3)
-        self.muxa_sel = np.binary_repr(muxa_sel,3)
-        self.word = "".join((self.muxa_sel,self.muxb_sel,self.br_mode,self.alu_op,self.rf_we,self.rf_wsel,self.imm))
+        if hex_word == None:
+            self.imm = np.binary_repr(imm, width=6)
+            self.rf_wsel = np.binary_repr(rf_wsel, width=2)
+            self.rf_we = np.binary_repr(rf_we,width=1)
+            self.alu_op = np.binary_repr(alu_op,4)
+            self.br_mode = np.binary_repr(br_mode,1)
+            self.muxb_sel = np.binary_repr(muxb_sel,3)
+            self.muxa_sel = np.binary_repr(muxa_sel,3)
+            self.word = "".join((self.muxa_sel,self.muxb_sel,self.br_mode,self.alu_op,self.rf_we,self.rf_wsel,self.imm))
+        else:
+            decimal_int = int(hex_word, 16)
+            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            self.imm = binary_string[:6]
+            self.rf_wsel = binary_string[6:8]
+            self.rf_we = binary_string[8:9]
+            self.alu_op = binary_string[9:13]
+            self.br_mode = binary_string[13:14]
+            self.muxb_sel = binary_string[14:17]
+            self.muxa_sel = binary_string[17:20]
+            self.word = binary_string
     
     def get_word(self):
         return self.word
@@ -168,6 +181,12 @@ class LCU_IMEM_WORD:
     def get_word_in_hex(self):
         '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
         return(hex(int(self.word, 2)))
+    
+    def get_word_in_asm(self):
+        imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = self.decode_word()
+        #TODO
+
+        pass
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
@@ -195,6 +214,14 @@ class LCU_IMEM_WORD:
 
 
 class LCU:
+    lcu_arith_ops   = { 'SADD','SSUB','SLL','SRL','SRA','LAND','LOR','LXOR' }
+    lcu_arith_i_ops = { 'SADDI','SSUBI','SLLI','SRLI','SRAI','LANDI','LORI','LXORI' }
+    lcu_rcmode_ops  = { 'BEQR','BNER','BLTR','BGER' }
+    lcu_branch_ops  = { 'BEQ','BNE','BLT','BGEPD' }
+    lcu_nop_ops     = { 'NOP' }
+    lcu_exit_ops    = { 'EXIT' }
+    lcu_jump_ops    = { 'JUMP' }
+    
     def __init__(self):
         self.regs       = [0 for _ in range(LCU_NUM_DREG)]
         self.imem       = LCU_IMEM()
@@ -202,63 +229,67 @@ class LCU:
         self.default_word = LCU_IMEM_WORD().get_word()
         self.iregs = [self.default_word in range(LCU_NUM_CREG)]
     
-    def sadd( val1, val2 ):
-        return c_int32( val1 + val2 ).value
+    def run(self, pc):
+        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
+        return -1,-1
+    
+    # def sadd( val1, val2 ):
+    #     return c_int32( val1 + val2 ).value
 
-    def ssub( val1, val2 ):
-        return c_int32( val1 - val2 ).value
+    # def ssub( val1, val2 ):
+    #     return c_int32( val1 - val2 ).value
 
-    def sll( val1, val2 ):
-        return c_int32(val1 << val2).value
+    # def sll( val1, val2 ):
+    #     return c_int32(val1 << val2).value
 
-    def srl( val1, val2 ):
-        interm_result = (c_int32(val1).value & MAX_32b)
-        return c_int32(interm_result >> val2).value
+    # def srl( val1, val2 ):
+    #     interm_result = (c_int32(val1).value & MAX_32b)
+    #     return c_int32(interm_result >> val2).value
 
-    def sra( val1, val2 ):
-        return c_int32(val1 >> val2).value
+    # def sra( val1, val2 ):
+    #     return c_int32(val1 >> val2).value
 
-    def lor( val1, val2 ):
-        return c_int32( val1 | val2).value
+    # def lor( val1, val2 ):
+    #     return c_int32( val1 | val2).value
 
-    def land( val1, val2 ):
-        return c_int32( val1 & val2).value
+    # def land( val1, val2 ):
+    #     return c_int32( val1 & val2).value
 
-    def lxor( val1, val2 ):
-        return c_int32( val1 ^ val2).value
+    # def lxor( val1, val2 ):
+    #     return c_int32( val1 ^ val2).value
 
-    def beq( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
+    # def beq( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
 
-    def bne( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
+    # def bne( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
 
-    def bgepd( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
+    # def bgepd( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
 
-    def blt( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
+    # def blt( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
 
-    def beqr( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
+    # def beqr( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
 
-    def bner( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
+    # def bner( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
 
-    def bger( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
+    # def bger( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
 
-    def bltr( self,  val1, val2, branch ):
-        self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
+    # def bltr( self,  val1, val2, branch ):
+    #     self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
 
-    def nop(self):
-        pass # Intentional
+    # def nop(self):
+    #     pass # Intentional
 
-    def exit(self):
-        pass
+    # def exit(self):
+    #     pass
 
-    def jump(self, imm):
-        pass
+    # def jump(self, imm):
+    #     pass
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
@@ -413,8 +444,8 @@ class LCU:
             # self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
             # self.nInstr+=1
             # Return read and write srf indexes and the hex translation
-            hex_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-            return srf_read_index, srf_str_index, hex_word
+            word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA)
+            return srf_read_index, srf_str_index, word
         
         if op in self.lcu_arith_i_ops:
             alu_op = LCU_ALU_OPS[op[:-1]]
@@ -454,8 +485,8 @@ class LCU:
                 rf_we = 0
 
             # Return read and write srf indexes
-            hex_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-            return srf_read_index, srf_str_index, hex_word
+            word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
+            return srf_read_index, srf_str_index, word
 
         if op in self.lcu_rcmode_ops:
             alu_op = LCU_ALU_OPS[op[:-1]]
@@ -471,8 +502,8 @@ class LCU:
             
             br_mode = 1
             # Return read and write srf indexes
-            hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode).get_word_in_hex()
-            return -1, -1, hex_word
+            word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode)
+            return -1, -1, word
 
         if op in self.lcu_branch_ops:
             alu_op = LCU_ALU_OPS[op]
@@ -511,8 +542,8 @@ class LCU:
             br_mode = 0
     
             # Return read and write srf indexes
-            hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-            return srf_read_index, srf_str_index, hex_word
+            word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA)
+            return srf_read_index, srf_str_index, word
 
         if op in self.lcu_jump_ops:
             alu_op = LCU_ALU_OPS[op]
@@ -548,8 +579,8 @@ class LCU:
             #self.imem.set_params(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
             #self.nInstr+=1
             # Return read and write srf indexes
-            hex_word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-            return srf_read_index, -1, hex_word
+            word = LCU_IMEM_WORD(imm=imm, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
+            return srf_read_index, -1, word
 
         if op in self.lcu_nop_ops:
             alu_op = LCU_ALU_OPS[op]
@@ -558,8 +589,8 @@ class LCU:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Nop does not expect operands.")
 
             # Return read and write srf indexes
-            hex_word = LCU_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
-            return -1, -1, hex_word
+            word = LCU_IMEM_WORD(alu_op=alu_op)
+            return -1, -1, word
         
         if op in self.lcu_exit_ops:
             alu_op = LCU_ALU_OPS[op]
@@ -568,42 +599,10 @@ class LCU:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Exit does not expect operands.")
             
             # Return read and write srf indexes
-            hex_word = LCU_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
-            return -1, -1, hex_word
+            word = LCU_IMEM_WORD(alu_op=alu_op)
+            return -1, -1, word
         
         raise ValueError("Instruction not valid for LCU: " + instr + ". Operation not recognised.")
 
-    lcu_arith_ops   = { 'SADD'      : sadd,
-                        'SSUB'      : ssub,
-                        'SLL'       : sll,
-                        'SRL'       : srl,
-                        'SRA'       : sra,
-                        'LAND'      : land,
-                        'LOR'       : lor,
-                        'LXOR'      : lxor }
-        
-    lcu_arith_i_ops = { 'SADDI'      : sadd,
-                        'SSUBI'      : ssub,
-                        'SLLI'       : sll,
-                        'SRLI'       : srl,
-                        'SRAI'       : sra,
-                        'LANDI'      : land,
-                        'LORI'       : lor,
-                        'LXORI'      : lxor }
-
-    lcu_rcmode_ops  = { 'BEQR'       : beqr,
-                        'BNER'       : bner,
-                        'BLTR'       : bltr,
-                        'BGER'       : bger }
-
-    lcu_branch_ops  = { 'BEQ'       : beq,
-                        'BNE'       : bne,
-                        'BLT'       : blt,
-                        'BGEPD'       : bgepd }
-
-    lcu_nop_ops     = { 'NOP'       : nop }
-    lcu_exit_ops    = { 'EXIT'      : exit }
-
-    lcu_jump_ops    = { 'JUMP'      : jump }
 
     

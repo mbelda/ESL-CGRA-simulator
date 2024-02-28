@@ -141,7 +141,7 @@ class RC_IMEM:
     
         
 class RC_IMEM_WORD:
-    def __init__(self, rf_wsel=0, rf_we=0, muxf_sel=RC_MUXF_SEL.OWN, alu_op=RC_ALU_OPS.NOP, op_mode=0, muxb_sel=RC_MUX_SEL.VWR_A, muxa_sel=RC_MUX_SEL.VWR_A):
+    def __init__(self, hex_word=None, rf_wsel=0, rf_we=0, muxf_sel=RC_MUXF_SEL.OWN, alu_op=RC_ALU_OPS.NOP, op_mode=0, muxb_sel=RC_MUX_SEL.VWR_A, muxa_sel=RC_MUX_SEL.VWR_A):
         '''Generate a binary rc instruction word from its configuration paramerers:
         
            -   rf_wsel: Select one of eight RC registers to write to
@@ -153,15 +153,27 @@ class RC_IMEM_WORD:
            -   muxa_sel: Select input A to ALU (see RC_MUX_SEL enum for options)
         
         '''
-        self.rf_wsel = np.binary_repr(rf_wsel, width=1)
-        self.rf_we = np.binary_repr(rf_we,width=1)
-        self.muxf_sel = np.binary_repr(muxf_sel,width=3)
-        self.alu_op = np.binary_repr(alu_op,4)
-        self.op_mode = np.binary_repr(op_mode,width=1)
-        self.muxb_sel = np.binary_repr(muxb_sel,4)
-        self.muxa_sel = np.binary_repr(muxa_sel,4)
-        self.word = "".join((self.muxa_sel,self.muxb_sel,self.op_mode,self.alu_op,self.muxf_sel,self.rf_we,self.rf_wsel))
-    
+        if hex_word == None:
+            self.rf_wsel = np.binary_repr(rf_wsel, width=1)
+            self.rf_we = np.binary_repr(rf_we,width=1)
+            self.muxf_sel = np.binary_repr(muxf_sel,width=3)
+            self.alu_op = np.binary_repr(alu_op,4)
+            self.op_mode = np.binary_repr(op_mode,width=1)
+            self.muxb_sel = np.binary_repr(muxb_sel,4)
+            self.muxa_sel = np.binary_repr(muxa_sel,4)
+            self.word = "".join((self.muxa_sel,self.muxb_sel,self.op_mode,self.alu_op,self.muxf_sel,self.rf_we,self.rf_wsel))
+        else:
+            decimal_int = int(hex_word, 16)
+            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            self.rf_wsel = binary_string[:1]
+            self.rf_we = binary_string[1:2]
+            self.muxf_sel = binary_string[2:5]
+            self.alu_op = binary_string[5:9]
+            self.op_mode = binary_string[9:10]
+            self.muxb_sel = binary_string[10:14]
+            self.muxa_sel = binary_string[14:18]
+            self.word = binary_string
+
     def get_word(self):
         return self.word
     
@@ -195,89 +207,95 @@ class RC_IMEM_WORD:
         return rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel
     
 class RC:
+    rc_arith_ops   = {  'SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR','SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FP','DIV.FP' }
+    rc_flag_ops     = { 'SFGA','ZFGA' }
+    rc_nop_ops      = { 'NOP' }
+
     def __init__(self):
         self.regs       = [0 for _ in range(RC_NUM_DREG)]
         self.imem       = RC_IMEM()
         self.nInstr     = 0
         self.default_word = RC_IMEM_WORD().get_word()
     
-    def sadd( val1, val2 ):
-        return c_int32( val1 + val2 ).value
+    def run(self, pc):
+        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
+        pass
 
-    def ssub( val1, val2 ):
-        return c_int32( val1 - val2 ).value
+    # def sadd( val1, val2 ):
+    #     return c_int32( val1 + val2 ).value
 
-    def sll( val1, val2 ):
-        return c_int32(val1 << val2).value
+    # def ssub( val1, val2 ):
+    #     return c_int32( val1 - val2 ).value
 
-    def srl( val1, val2 ):
-        interm_result = (c_int32(val1).value & MAX_32b)
-        return c_int32(interm_result >> val2).value
+    # def sll( val1, val2 ):
+    #     return c_int32(val1 << val2).value
 
-    def sra( val1, val2 ):
-        return c_int32(val1 >> val2).value
+    # def srl( val1, val2 ):
+    #     interm_result = (c_int32(val1).value & MAX_32b)
+    #     return c_int32(interm_result >> val2).value
 
-    def lor( val1, val2 ):
-        return c_int32( val1 | val2).value
+    # def sra( val1, val2 ):
+    #     return c_int32(val1 >> val2).value
 
-    def land( val1, val2 ):
-        return c_int32( val1 & val2).value
+    # def lor( val1, val2 ):
+    #     return c_int32( val1 | val2).value
 
-    def lxor( val1, val2 ):
-        return c_int32( val1 ^ val2).value
+    # def land( val1, val2 ):
+    #     return c_int32( val1 & val2).value
+
+    # def lxor( val1, val2 ):
+    #     return c_int32( val1 ^ val2).value
     
-    def smul(self):
-        pass
+    # def smul(self):
+    #     pass
 
-    def sdiv(self, imm):
-        pass
+    # def sdiv(self, imm):
+    #     pass
     
-    def saddh( val1, val2 ):
-        raise ValueError("Half precision add not supported.")
+    # def saddh( val1, val2 ):
+    #     raise ValueError("Half precision add not supported.")
 
-    def ssubh( val1, val2 ):
-        raise ValueError("Half precision sub not supported.")
+    # def ssubh( val1, val2 ):
+    #     raise ValueError("Half precision sub not supported.")
 
-    def sllh( val1, val2 ):
-        raise ValueError("Half precision sll not supported.")
+    # def sllh( val1, val2 ):
+    #     raise ValueError("Half precision sll not supported.")
 
-    def srlh( val1, val2 ):
-        raise ValueError("Half precision srl not supported.")
+    # def srlh( val1, val2 ):
+    #     raise ValueError("Half precision srl not supported.")
     
-    def srah( val1, val2 ):
-        raise ValueError("Half precision sra not supported.")
+    # def srah( val1, val2 ):
+    #     raise ValueError("Half precision sra not supported.")
 
-    def lorh( val1, val2 ):
-        raise ValueError("Half precision lor not supported.")
+    # def lorh( val1, val2 ):
+    #     raise ValueError("Half precision lor not supported.")
 
-    def landh( val1, val2 ):
-        raise ValueError("Half precision land not supported.")
+    # def landh( val1, val2 ):
+    #     raise ValueError("Half precision land not supported.")
 
-    def lxorh( val1, val2 ):
-        raise ValueError("Half precision lxor not supported.")
+    # def lxorh( val1, val2 ):
+    #     raise ValueError("Half precision lxor not supported.")
 
-    def smulh(self):
-        raise ValueError("Half precision mul not supported.")
+    # def smulh(self):
+    #     raise ValueError("Half precision mul not supported.")
 
-    def sdivh(self, imm):
-        raise ValueError("Half precision div not supported.")
+    # def sdivh(self, imm):
+    #     raise ValueError("Half precision div not supported.")
 
-    def nop(self):
-        pass # Intentional
+    # def nop(self):
+    #     pass # Intentional
 
-    
+    # def mul_fp(self):
+    #     pass
 
-    def mul_fp(self):
-        pass
+    # def div_fp(self, imm):
+    #     pass
 
-    def div_fp(self, imm):
-        pass
+    # def sfga(self):
+    #     pass
 
-    def sfga(self):
-        pass
-
-    def zfga(self, imm):
-        pass
+    # def zfga(self, imm):
+    #     pass
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
@@ -454,8 +472,8 @@ class RC:
             #self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
             #self.nInstr+=1
             # Return read and write srf indexes and the flag to write on a vwr
-            hex_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-            return srf_read_index, srf_str_index, vwr_str, hex_word
+            word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA)
+            return srf_read_index, srf_str_index, vwr_str, word
         
         if op in self.rc_nop_ops:
             alu_op = RC_ALU_OPS[op]
@@ -466,8 +484,8 @@ class RC:
             #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
             #self.nInstr+=1
             # Return read and write srf indexes
-            hex_word = RC_IMEM_WORD(alu_op=alu_op).get_word_in_hex()
-            return -1, -1, -1, hex_word
+            word = RC_IMEM_WORD(alu_op=alu_op)
+            return -1, -1, -1, word
         
         if op in self.rc_flag_ops:
             if op == "SFGA":
@@ -502,34 +520,8 @@ class RC:
             #self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, pos=self.nInstr)
             #self.nInstr+=1
             # Return read and write srf indexes and the flag to write on a vwr
-            hex_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op).get_word_in_hex()
-            return -1, srf_str_index, vwr_str, hex_word
+            word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op)
+            return -1, srf_str_index, vwr_str, word
         
 
         raise ValueError("Instruction not valid for RC: " + instr + ". Operation not recognised.")
-
-    rc_arith_ops   = {  'SADD'      : sadd,
-                        'SSUB'      : ssub,
-                        'SMUL'      : smul,
-                        'SDIV'      : sdiv,
-                        'SLL'       : sll,
-                        'SRL'       : srl,
-                        'SRA'       : sra,
-                        'LAND'      : land,
-                        'LOR'       : lor,
-                        'SADD.H'    : saddh,
-                        'SSUB.H'    : ssubh,
-                        'SMUL.H'    : smulh,
-                        'SDIV.H'    : sdivh,
-                        'SLL.H'     : sllh,
-                        'SRL.H'     : srlh,
-                        'SRA.H'     : srah,
-                        'LAND.H'    : landh,
-                        'LOR.H'     : lorh,
-                        'MUL.FP'    : mul_fp,
-                        'DIV.FP'    : div_fp}
-    
-    rc_flag_ops     = { 'SFGA'      : sfga,
-                        'ZFGA'      : zfga }
-            
-    rc_nop_ops      = { 'NOP'       : nop }

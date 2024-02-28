@@ -29,7 +29,7 @@ class CGRA:
             self.spm.setLine(nline, vector)
             nline+=1
     
-    def kernel_config(self, column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number):
-        self.kmem.addKernel(num_instructions=kernel_nInstr, imem_add_start=imem_add_start, column_usage=column_usage, srf_spm_addres=srf_spm_addres, nKernel=kernel_number)
+    def kernel_config(self, col_one_hot, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number):
+        self.kmem.addKernel(num_instructions=kernel_nInstr, imem_add_start=imem_add_start, col_one_hot=col_one_hot, srf_spm_addres=srf_spm_addres, nKernel=kernel_number)
         
     

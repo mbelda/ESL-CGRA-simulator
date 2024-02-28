@@ -11,7 +11,7 @@ IMEM_N_LINES = 512
 class IMEM:
     '''Instruction memory of the CGRA'''
     def __init__(self):
-        self.lcu_imem = [LCU_IMEM_WORD().get_word_in_hex() for _ in range(IMEM_N_LINES)]
-        self.lsu_imem = [LSU_IMEM_WORD().get_word_in_hex() for _ in range(IMEM_N_LINES)]
-        self.mxcu_imem = [MXCU_IMEM_WORD().get_word_in_hex() for _ in range(IMEM_N_LINES)]
-        self.rcs_imem = [[RC_IMEM_WORD().get_word_in_hex() for _ in range(IMEM_N_LINES)] for _ in range(CGRA_ROWS)]
+        self.lcu_imem = [LCU_IMEM_WORD() for _ in range(IMEM_N_LINES)]
+        self.lsu_imem = [LSU_IMEM_WORD() for _ in range(IMEM_N_LINES)]
+        self.mxcu_imem = [MXCU_IMEM_WORD() for _ in range(IMEM_N_LINES)]
+        self.rcs_imem = [[RC_IMEM_WORD() for _ in range(IMEM_N_LINES)] for _ in range(CGRA_ROWS)]

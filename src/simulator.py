@@ -11,28 +11,77 @@ import csv
 from .vwr2a import CGRA, CGRA_ROWS, CGRA_COLS
 from .spm import *
 from .imem import IMEM_N_LINES
-from .lcu import LCU_NUM_CREG
-from .lsu import LSU_NUM_CREG
-from .mxcu import MXCU_NUM_CREG
-from .rc import RC_NUM_CREG
+from .lcu import LCU_NUM_CREG, LCU_IMEM_WORD
+from .lsu import LSU_NUM_CREG, LSU_IMEM_WORD
+from .mxcu import MXCU_NUM_CREG, MXCU_IMEM_WORD
+from .rc import RC_NUM_CREG, RC_IMEM_WORD
 
 class SIMULATOR:
     def __init__(self):
         self.vwr2a = CGRA()
     
+    # Save the configuration parameters of a kernel into the kmem
     def kernel_config(self, column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number):
-        self.vwr2a.kernel_config(column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number)
+        assert(len(column_usage) == 2), "Error. Column_usage format must be [True/Flase, True/False]"
+        #Parse column usage from bool array [True, False] to one-hot encoded
+        if column_usage[0] and column_usage[1]:
+            col_one_hot = 3 # Both cols
+        elif column_usage[0]:
+            col_one_hot = 1 # Only col 0
+        else:
+            col_one_hot = 2 # Only second col
+        self.vwr2a.kernel_config(col_one_hot, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number)
 
-    def setSPMLine(self, nline, vector):
-        self.vwr2a.setSPMLine(nline, vector)
-    
-    def loadSPMData(self, data):
-        self.vwr2a.loadSPMData(data)
-
-    def run(self, nKernel, display_ops=[[] for _ in range(CGRA_ROWS + 4)]): # +4 -> (LCU, LSU, MXCU, SRF)
+    # Load the instructions of a kernel from an instructions_asm file to the general imem 
+    def kernel_load(self, kernel_path, version='', kernel_number=1):
         # Decode the kernel number of instructions and which ones they are
-        n_instr, imem_start_addr, col_usage, srf_spm_bank = self.vwr2a.kmem.imem.get_params(nKernel)
-        n_instr+=1 # Add one
+        n_instr_per_col, imem_start_addr, col_usage, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
+
+        # Control the columns used
+        if col_usage == 0:
+            ini_col = 0
+            end_col = 0
+        elif col_usage == 1:
+            ini_col = 1
+            end_col = 1
+        else: # col_usage == 2
+            # Both
+            ini_col = 0
+            end_col = 1
+        file_path = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
+        print("Processing file: " + file_path + "...")
+        with open( file_path, 'r') as file:
+
+            # Create a CSV reader object
+            csv_reader = csv.reader(file)
+            # Skip the header (first row)
+            next(csv_reader, None)
+
+            # For each used column read the number of instructions
+            instr_cont = imem_start_addr
+            for col in range(ini_col, end_col+1):
+                instr_cont_per_col = 0
+                while instr_cont_per_col < n_instr_per_col:
+                    try:
+                        row = next(csv_reader, None)
+                        self.vwr2a.imem.lcu_imem[instr_cont] = LCU_IMEM_WORD(hex_word=row[0])
+                        self.vwr2a.imem.lsu_imem[instr_cont] = LSU_IMEM_WORD(hex_word=row[1])
+                        self.vwr2a.imem.mxcu_imem[instr_cont] = MXCU_IMEM_WORD(hex_word=row[2])
+                    
+                        index = 3
+                        for rc in range(CGRA_ROWS):
+                            self.vwr2a.imem.rcs_imem[rc][instr_cont] = RC_IMEM_WORD(hex_word=row[index])
+                            index+=1
+                    except:
+                        nUsedCols = end_col - ini_col + 1
+                        raise Exception("CSV instruction structure is not appropiate. Expected: LCU_instr, LSU_instr, MXCU_instr, RC0_instr, ..., RC" + str(CGRA_ROWS -1) + "_instr. It should have " + str(nUsedCols*n_instr_per_col) + " rows plus the header.")
+                    instr_cont+=1
+                    instr_cont_per_col+=1
+    
+    # Run the instructions of an specified kernel
+    def run(self, kernel_number, display_ops=[[] for _ in range(CGRA_ROWS + 4)]): # +4 -> (LCU, LSU, MXCU, SRF)
+        # Decode the kernel number of instructions and which ones they are
+        n_instr_per_col, imem_start_addr, col_usage, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
        
         # Control the columns used
         if col_usage == 0:
@@ -50,30 +99,72 @@ class SIMULATOR:
         
         # Initialize the index of the SRF values on the SPM on R7 of the LSU
         for col in range(ini_col, end_col+1):
-            self.vwr2a.lsu[col].regs[7] = srf_spm_bank
+            self.vwr2a.lsus[col].regs[7] = srf_spm_bank
         
-        # Execute each pc instruction on each used column
-        pc = imem_start_addr # The pc is the same for both columns because is the same kernel
+        # Move the instructions from the general imem to each specilized unit's imem
+        addr = imem_start_addr
+        for col in range(ini_col, end_col+1):
+            pos = 0
+            for j in range(n_instr_per_col):
+                self.vwr2a.lcus[col].imem.set_word(int(self.vwr2a.imem.lcu_imem[addr].get_word(),2), pos)
+                self.vwr2a.lsus[col].imem.set_word(int(self.vwr2a.imem.lsu_imem[addr].get_word(),2), pos)
+                self.vwr2a.mxcus[col].imem.set_word(int(self.vwr2a.imem.mxcu_imem[addr].get_word(),2), pos)
+                for rc in range(CGRA_ROWS):
+                    self.vwr2a.rcs[col][rc].imem.set_word(int(self.vwr2a.imem.rcs_imem[rc][addr].get_word(),2), pos)
+                pos+=1
+                addr+=1
 
-        branch = [-1 for _ in range(ini_col, end_col+1)]
-        exit = [-1 for _ in range(ini_col, end_col+1)]
+
+        # Execute each instruction cycle by cycle        
+        pc = 0 # The pc is the same for both columns because is the same kernel
+        branch_flags = [-1 for _ in range(ini_col, end_col+1)] # Branch
+        exit_flags = [-1 for _ in range(ini_col, end_col+1)] # Exit
+        print(branch_flags)
+        exit = False
         
-        while pc < imem_start_addr+n_instr and not exit:
+        while pc < n_instr_per_col and not exit:
+            print("PC: " + str(pc))
             for col in range(ini_col, end_col+1):
+                print("Col: " + str(col))
                 self.vwr2a.lsus[col].run(pc) # Check if they need anything from the others
                 self.vwr2a.mxcus[col].run(pc)
                 for rc in range(CGRA_ROWS):
                     self.vwr2a.rcs[col][rc].run(pc)
+                # update shared registers with neighbours value
                 # Last the LCU because it might need the ALU flags of the RCs
-                branch[col], exit[col] = self.vwr2a.lcus[col].run(pc) # Is a branch is taken, returns the inm
-            # Update pc
-            pc+=1
-            for col in range(ini_col, end_col+1):
-                if branch[col] != -1:
-                    pc = imem_start_addr + branch[col]
-                if exit:
-                    #TODO
-                    pass
+                branch_flags[col], exit_flags[col] = self.vwr2a.lcus[col].run(pc) # Is a branch is taken, returns the inm
+            pc+=1 # Update pc
+            # Check branches
+            bflags = np.array(branch_flags)
+            bflags = bflags[bflags != -1]
+            if (len(bflags) == 1):
+                for col in range(ini_col, end_col+1):
+                    if branch_flags[col] != -1:
+                        pc = branch_flags[col]
+            elif (len(bflags) == 2):
+                raise Exception("Two branches taken in the same cycle")
+            # Check exit
+            exflags = np.array(exit_flags)
+            exflags = exflags[exflags != -1]
+            exit = (len(exflags) != 0)
+        
+        print("End...")
+                    
+        
+
+    def setSPMLine(self, nline, vector):
+        self.vwr2a.setSPMLine(nline, vector)
+    
+    def loadSPMData(self, data):
+        self.vwr2a.loadSPMData(data)
+
+    def displaySPMLine(self, nline):
+        values_list = ''.join(str(x) + ", " for x in self.vwr2a.spm.getLine(nline))
+        print("SPM " + str(nline) + ": [" + values_list + "]")
+
+    def displaySPM(self):
+        for i in range(SPM_NLINES):
+            self.displaySPMLine(i)
     
     def compileAsm(self, kernel_path, version="", nInstrPerCol=0, colUsage=[False,False], imem_start_addr=0):
         # String buffers
@@ -84,8 +175,9 @@ class SIMULATOR:
 
         # Load csv file with instructions
         # LCU, LSU, MXCU, RC0, RC1, ..., RCN
-        print("Processing file: " + kernel_path + FILENAME_INSTR + version + EXT + "...")
-        with open( kernel_path +FILENAME_INSTR+version+EXT, 'r') as file:
+        file_path = kernel_path + FILENAME_INSTR + version + EXT
+        print("Processing file: " +  file_path + "...")
+        with open( file_path, 'r') as file:
 
             # Control the used columns
             assert(len(colUsage) == 2), "The column usage must have the structure [True/Flase, True/False]"
@@ -134,8 +226,8 @@ class SIMULATOR:
             for i in range(len(LCU_instr[col])):
                 # For LCU
                 LCU_inst = LCU_instr[col][i]
-                srf_read_idx_lcu, srf_str_idx_lcu, hex_word = lcu.asmToHex(LCU_inst)
-                self.vwr2a.imem.lcu_imem[imem_addr] = hex_word
+                srf_read_idx_lcu, srf_str_idx_lcu, word = lcu.asmToHex(LCU_inst)
+                self.vwr2a.imem.lcu_imem[imem_addr] = word
                 # For LSU
                 LSU_inst = LSU_instr[col][i]
                 srf_read_idx_lsu, srf_str_idx_lsu, hex_word = lsu.asmToHex(LSU_inst)
@@ -176,10 +268,31 @@ class SIMULATOR:
                 imem_addr+=1
         
         # Write instructions to bitstream
-        self.instructions_to_header_file(kernel_path)
+        self.create_header_file(kernel_path)
+        self.create_hex_csv_file(kernel_path, version)
 
-    def instructions_to_header_file(self, kernel_path):
-        with open(kernel_path + 'dsip_bitstream.h', 'w+') as file:
+    def create_hex_csv_file(self, kernel_path, version):
+        file_name = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
+        with open(file_name, 'w+') as csvfile:
+            writer = csv.writer(csvfile)
+
+            # Header
+            header = ["LCU","LSU","MXCU"]
+            for i in range(CGRA_ROWS):
+                header.append("RC" + str(i))
+            writer.writerow(header)
+
+            # Each instruction
+            for i in range(IMEM_N_LINES):
+                elems_to_write = [self.vwr2a.imem.lcu_imem[i].get_word_in_hex(), self.vwr2a.imem.lsu_imem[i].get_word_in_hex(), self.vwr2a.imem.mxcu_imem[i].get_word_in_hex()]
+                for rc in range(CGRA_ROWS):
+                    elems_to_write.append(self.vwr2a.imem.rcs_imem[rc][i].get_word_in_hex())
+                writer.writerow(elems_to_write)
+
+
+    def create_header_file(self, kernel_path):
+        file_name = kernel_path + 'dsip_bitstream.h'
+        with open(file_name, 'w+') as file:
             file.write("#ifndef _DSIP_BITSTREAM_H_\n#define _DSIP_BITSTREAM_H_\n\n#include <stdint.h>\n\n#include \"dsip.h\"\n\n")
 
             # Write LCU bitstream

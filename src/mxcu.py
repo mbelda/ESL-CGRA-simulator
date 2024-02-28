@@ -147,7 +147,7 @@ class MXCU_IMEM:
     
         
 class MXCU_IMEM_WORD:
-    def __init__(self, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUX_SEL.R0, muxa_sel=MXCU_MUX_SEL.R0):
+    def __init__(self, hex_word=None, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUX_SEL.R0, muxa_sel=MXCU_MUX_SEL.R0):
         '''Generate a binary mxcu instruction word from its configuration paramerers:
         
            -   vwr_row_we: One-hot encoded write enable to the 4 rows (also known as slices) of the VWR.
@@ -162,21 +162,36 @@ class MXCU_IMEM_WORD:
            -   muxa_sel: Select input A to ALU (see MXCU_MUX_SEL enum for options)
         
         '''
-        binary_vwr_row_we = ""
-        for b in vwr_row_we:
-            binary_vwr_row_we += (np.binary_repr(b))
-        self.vwr_row_we = binary_vwr_row_we
-        self.vwr_sel = np.binary_repr(vwr_sel,2)
-        self.srf_sel = np.binary_repr(srf_sel,3)
-        self.alu_srf_write = np.binary_repr(alu_srf_write,2)
-        self.srf_we = np.binary_repr(srf_we, 1)
-        self.rf_wsel = np.binary_repr(rf_wsel, width=3)
-        self.rf_we = np.binary_repr(rf_we,width=1)
-        self.alu_op = np.binary_repr(alu_op,3)
-        self.muxb_sel = np.binary_repr(muxb_sel,4)
-        self.muxa_sel = np.binary_repr(muxa_sel,4)
-        self.word = "".join((self.muxa_sel, self.muxb_sel, self.alu_op, self.rf_we, self.rf_wsel, self.srf_we, self.alu_srf_write, self.srf_sel, self.vwr_sel, self.vwr_row_we))
-    
+        if hex_word == None:
+            binary_vwr_row_we = ""
+            for b in vwr_row_we:
+                binary_vwr_row_we += (np.binary_repr(b))
+            self.vwr_row_we = binary_vwr_row_we
+            self.vwr_sel = np.binary_repr(vwr_sel,2)
+            self.srf_sel = np.binary_repr(srf_sel,3)
+            self.alu_srf_write = np.binary_repr(alu_srf_write,2)
+            self.srf_we = np.binary_repr(srf_we, 1)
+            self.rf_wsel = np.binary_repr(rf_wsel, width=3)
+            self.rf_we = np.binary_repr(rf_we,width=1)
+            self.alu_op = np.binary_repr(alu_op,3)
+            self.muxb_sel = np.binary_repr(muxb_sel,4)
+            self.muxa_sel = np.binary_repr(muxa_sel,4)
+            self.word = "".join((self.muxa_sel, self.muxb_sel, self.alu_op, self.rf_we, self.rf_wsel, self.srf_we, self.alu_srf_write, self.srf_sel, self.vwr_sel, self.vwr_row_we))
+        else:
+            decimal_int = int(hex_word, 16)
+            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            self.vwr_row_we = binary_string[:4]
+            self.vwr_sel = binary_string[4:6]
+            self.srf_sel = binary_string[6:9]
+            self.alu_srf_write = binary_string[9:11]
+            self.srf_we = binary_string[11:12]
+            self.rf_wsel = binary_string[12:15]
+            self.rf_we = binary_string[15:16]
+            self.alu_op = binary_string[16:19]
+            self.muxb_sel = binary_string[19:23]
+            self.muxa_sel = binary_string[23:27]
+            self.word = binary_string
+
     def get_word(self):
         return self.word
 
@@ -221,66 +236,73 @@ class MXCU_IMEM_WORD:
     
 
 class MXCU:
+    mxcu_arith_ops   = { 'SADD', 'SSUB','SLL','SRL','LAND','LOR','LXOR' }
+    mxcu_nop_ops     = { 'NOP' }
+
     def __init__(self):
         self.regs       = [0 for _ in range(MXCU_NUM_DREG)]
         self.imem       = MXCU_IMEM()
         self.nInstr     = 0
         self.default_word = MXCU_IMEM_WORD().get_word()
     
-    def sadd( val1, val2 ):
-        return c_int32( val1 + val2 ).value
-
-    def ssub( val1, val2 ):
-        return c_int32( val1 - val2 ).value
-
-    def sll( val1, val2 ):
-        return c_int32(val1 << val2).value
-
-    def srl( val1, val2 ):
-        interm_result = (c_int32(val1).value & MAX_32b)
-        return c_int32(interm_result >> val2).value
-
-    def lor( val1, val2 ):
-        return c_int32( val1 | val2).value
-
-    def land( val1, val2 ):
-        return c_int32( val1 & val2).value
-
-    def lxor( val1, val2 ):
-        return c_int32( val1 ^ val2).value
-
-    def nop(self):
-        pass # Intentional
-
-    def load_vwr(self):
+    def run(self, pc):
+        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
         pass
 
-    def store_vwr(self):
-        pass
+    # def sadd( val1, val2 ):
+    #     return c_int32( val1 + val2 ).value
 
-    def shilup(self):
-        pass
+    # def ssub( val1, val2 ):
+    #     return c_int32( val1 - val2 ).value
+
+    # def sll( val1, val2 ):
+    #     return c_int32(val1 << val2).value
+
+    # def srl( val1, val2 ):
+    #     interm_result = (c_int32(val1).value & MAX_32b)
+    #     return c_int32(interm_result >> val2).value
+
+    # def lor( val1, val2 ):
+    #     return c_int32( val1 | val2).value
+
+    # def land( val1, val2 ):
+    #     return c_int32( val1 & val2).value
+
+    # def lxor( val1, val2 ):
+    #     return c_int32( val1 ^ val2).value
+
+    # def nop(self):
+    #     pass # Intentional
+
+    # def load_vwr(self):
+    #     pass
+
+    # def store_vwr(self):
+    #     pass
+
+    # def shilup(self):
+    #     pass
     
-    def shillo(self):
-        pass
+    # def shillo(self):
+    #     pass
 
-    def sheven(self):
-        pass
+    # def sheven(self):
+    #     pass
 
-    def shodd(self):
-        pass
+    # def shodd(self):
+    #     pass
 
-    def shbreup(self):
-        pass
+    # def shbreup(self):
+    #     pass
 
-    def shbrelo(self):
-        pass
+    # def shbrelo(self):
+    #     pass
 
-    def shcshiftup(self):
-        pass
+    # def shcshiftup(self):
+    #     pass
 
-    def shcshiftlo(self):
-        pass
+    # def shcshiftlo(self):
+    #     pass
 
 
     def parseDestArith(self, rd, instr):
@@ -447,16 +469,6 @@ class MXCU:
         #self.imem.set_params(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
         #self.nInstr+=1
         
-        hex_word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-        return hex_word
+        word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
+        return word
         
-
-    mxcu_arith_ops   = { 'SADD'      : sadd,
-                        'SSUB'      : ssub,
-                        'SLL'       : sll,
-                        'SRL'       : srl,
-                        'LAND'      : land,
-                        'LOR'       : lor,
-                        'LXOR'      : lxor }
-        
-    mxcu_nop_ops     = { 'NOP'       : nop }

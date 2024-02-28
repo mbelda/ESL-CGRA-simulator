@@ -163,7 +163,7 @@ class LSU_IMEM:
     
         
 class LSU_IMEM_WORD:
-    def __init__(self, rf_wsel=0, rf_we=0, alu_op=LSU_ALU_OPS.LAND, muxb_sel=LSU_MUX_SEL.ZERO, muxa_sel=LSU_MUX_SEL.ZERO, vwr_sel_shuf_op=LSU_VWR_SEL.VWR_A, mem_op=LSU_MEM_OP.NOP):
+    def __init__(self, hex_word=None, rf_wsel=0, rf_we=0, alu_op=LSU_ALU_OPS.LAND, muxb_sel=LSU_MUX_SEL.ZERO, muxa_sel=LSU_MUX_SEL.ZERO, vwr_sel_shuf_op=LSU_VWR_SEL.VWR_A, mem_op=LSU_MEM_OP.NOP):
         '''Generate a binary lsu instruction word from its configuration paramerers:
         
            -   rf_wsel: Select one of eight LSU registers to write to
@@ -175,14 +175,26 @@ class LSU_IMEM_WORD:
            -   mem_op: Decide whether to use LSU for SPM communication or data shuffling (see LSU_MEM_OP enum for options)
         
         '''
-        self.rf_wsel = np.binary_repr(rf_wsel, width=3)
-        self.rf_we = np.binary_repr(rf_we,width=1)
-        self.alu_op = np.binary_repr(alu_op,3)
-        self.muxb_sel = np.binary_repr(muxb_sel,4)
-        self.muxa_sel = np.binary_repr(muxa_sel,4)
-        self.vwr_sel_shuf_op = np.binary_repr(vwr_sel_shuf_op,3)
-        self.mem_op = np.binary_repr(mem_op,2)
-        self.word = "".join((self.mem_op,self.vwr_sel_shuf_op,self.muxa_sel,self.muxb_sel,self.alu_op,self.rf_we,self.rf_wsel))
+        if hex_word == None:
+            self.rf_wsel = np.binary_repr(rf_wsel, width=3)
+            self.rf_we = np.binary_repr(rf_we,width=1)
+            self.alu_op = np.binary_repr(alu_op,3)
+            self.muxb_sel = np.binary_repr(muxb_sel,4)
+            self.muxa_sel = np.binary_repr(muxa_sel,4)
+            self.vwr_sel_shuf_op = np.binary_repr(vwr_sel_shuf_op,3)
+            self.mem_op = np.binary_repr(mem_op,2)
+            self.word = "".join((self.mem_op,self.vwr_sel_shuf_op,self.muxa_sel,self.muxb_sel,self.alu_op,self.rf_we,self.rf_wsel))
+        else:
+            decimal_int = int(hex_word, 16)
+            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            self.rf_wsel = binary_string[:3]
+            self.rf_we = binary_string[3:4]
+            self.alu_op = binary_string[4:7]
+            self.muxb_sel = binary_string[7:11]
+            self.muxa_sel = binary_string[11:15]
+            self.vwr_sel_shuf_op = binary_string[15:18]
+            self.mem_op = binary_string[18:20]
+            self.word = binary_string
     
     def get_word(self):
         return self.word
@@ -218,67 +230,75 @@ class LSU_IMEM_WORD:
     
 
 class LSU:
+    lsu_arith_ops   = { 'SADD','SSUB','SLL','SRL','LAND','LOR','LXOR' }
+    lsu_nop_ops     = { 'NOP' }
+    lsu_mem_ops     = { 'LD.VWR','ST.VWR' }
+    lsu_shuf_ops    = { 'SH.IL.UP','SH.IL.LO','SH.EVEN','SH.ODD','SH.BRE.UP','SH.BRE.LO','SH.CSHIFT.UP','SH.CSHIFT.LO' }
+
     def __init__(self):
         self.regs       = [0 for _ in range(LSU_NUM_DREG)]
         self.imem       = LSU_IMEM()
         self.nInstr     = 0
         self.default_word = LSU_IMEM_WORD().get_word()
     
-    def sadd( val1, val2 ):
-        return c_int32( val1 + val2 ).value
+    # def sadd( val1, val2 ):
+    #     return c_int32( val1 + val2 ).value
 
-    def ssub( val1, val2 ):
-        return c_int32( val1 - val2 ).value
+    # def ssub( val1, val2 ):
+    #     return c_int32( val1 - val2 ).value
 
-    def sll( val1, val2 ):
-        return c_int32(val1 << val2).value
+    # def sll( val1, val2 ):
+    #     return c_int32(val1 << val2).value
 
-    def srl( val1, val2 ):
-        interm_result = (c_int32(val1).value & MAX_32b)
-        return c_int32(interm_result >> val2).value
+    # def srl( val1, val2 ):
+    #     interm_result = (c_int32(val1).value & MAX_32b)
+    #     return c_int32(interm_result >> val2).value
 
-    def lor( val1, val2 ):
-        return c_int32( val1 | val2).value
+    # def lor( val1, val2 ):
+    #     return c_int32( val1 | val2).value
 
-    def land( val1, val2 ):
-        return c_int32( val1 & val2).value
+    # def land( val1, val2 ):
+    #     return c_int32( val1 & val2).value
 
-    def lxor( val1, val2 ):
-        return c_int32( val1 ^ val2).value
+    # def lxor( val1, val2 ):
+    #     return c_int32( val1 ^ val2).value
 
-    def nop(self):
-        pass # Intentional
+    # def nop(self):
+    #     pass # Intentional
 
-    def load_vwr(self):
-        pass
+    # def load_vwr(self):
+    #     pass
 
-    def store_vwr(self):
-        pass
+    # def store_vwr(self):
+    #     pass
 
-    def shilup(self):
-        pass
+    # def shilup(self):
+    #     pass
     
-    def shillo(self):
-        pass
+    # def shillo(self):
+    #     pass
 
-    def sheven(self):
-        pass
+    # def sheven(self):
+    #     pass
 
-    def shodd(self):
-        pass
+    # def shodd(self):
+    #     pass
 
-    def shbreup(self):
-        pass
+    # def shbreup(self):
+    #     pass
 
-    def shbrelo(self):
-        pass
+    # def shbrelo(self):
+    #     pass
 
-    def shcshiftup(self):
-        pass
+    # def shcshiftup(self):
+    #     pass
 
-    def shcshiftlo(self):
-        pass
+    # def shcshiftlo(self):
+    #     pass
 
+    def run(self, pc):
+        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
+        pass
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
@@ -481,27 +501,5 @@ class LSU:
         #self.imem.set_params(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
         #self.nInstr+=1
         # Return read and write srf indexes
-        hex_word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA).get_word_in_hex()
-        return srf_read_index, srf_str_index, hex_word
-
-    lsu_arith_ops   = { 'SADD'      : sadd,
-                        'SSUB'      : ssub,
-                        'SLL'       : sll,
-                        'SRL'       : srl,
-                        'LAND'      : land,
-                        'LOR'       : lor,
-                        'LXOR'      : lxor }
-        
-    lsu_nop_ops     = { 'NOP'       : nop }
-
-    lsu_mem_ops     = { 'LD.VWR'    : load_vwr,
-                        'ST.VWR'    : store_vwr }
-    
-    lsu_shuf_ops    = { 'SH.IL.UP'      : shilup,
-                        'SH.IL.LO'      : shillo,
-                        'SH.EVEN'       : sheven,
-                        'SH.ODD'        : shodd,
-                        'SH.BRE.UP'     : shbreup,
-                        'SH.BRE.LO'     : shbrelo,
-                        'SH.CSHIFT.UP'  : shcshiftup,
-                        'SH.CSHIFT.LO'  : shcshiftlo }
+        word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
+        return srf_read_index, srf_str_index, word
