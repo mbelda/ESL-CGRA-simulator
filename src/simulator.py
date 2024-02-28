@@ -32,22 +32,27 @@ class SIMULATOR:
             col_one_hot = 2 # Only second col
         self.vwr2a.kernel_config(col_one_hot, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number)
 
+    def parseColUsageFromOneHot(self, col_one_hot):
+        # Control the columns used
+        if col_one_hot == 1: # Only col 0
+            ini_col = 0
+            end_col = 0
+        elif col_one_hot == 2: # Only second col
+            ini_col = 1
+            end_col = 1
+        else: # col_one_hot == 3 Both cols
+            ini_col = 0
+            end_col = 1
+        return ini_col, end_col
+
     # Load the instructions of a kernel from an instructions_asm file to the general imem 
     def kernel_load(self, kernel_path, version='', kernel_number=1):
         # Decode the kernel number of instructions and which ones they are
-        n_instr_per_col, imem_start_addr, col_usage, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
+        n_instr_per_col, imem_start_addr, col_one_hot, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
 
-        # Control the columns used
-        if col_usage == 0:
-            ini_col = 0
-            end_col = 0
-        elif col_usage == 1:
-            ini_col = 1
-            end_col = 1
-        else: # col_usage == 2
-            # Both
-            ini_col = 0
-            end_col = 1
+        # Parse columns used
+        ini_col, end_col = self.parseColUsageFromOneHot(col_one_hot)
+
         file_path = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
         print("Processing file: " + file_path + "...")
         with open( file_path, 'r') as file:
@@ -81,21 +86,10 @@ class SIMULATOR:
     # Run the instructions of an specified kernel
     def run(self, kernel_number, display_ops=[[] for _ in range(CGRA_ROWS + 4)]): # +4 -> (LCU, LSU, MXCU, SRF)
         # Decode the kernel number of instructions and which ones they are
-        n_instr_per_col, imem_start_addr, col_usage, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
+        n_instr_per_col, imem_start_addr, col_one_hot, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
        
         # Control the columns used
-        if col_usage == 0:
-            ini_col = 0
-            end_col = 0
-            col = 0
-        elif col_usage == 2:
-            ini_col = 1
-            end_col = 1
-            col = 1
-        else: # col_usage == 1
-            # Both
-            ini_col = 0
-            end_col = 1
+        ini_col, end_col = self.parseColUsageFromOneHot(col_one_hot)
         
         # Initialize the index of the SRF values on the SPM on R7 of the LSU
         for col in range(ini_col, end_col+1):
@@ -119,7 +113,6 @@ class SIMULATOR:
         pc = 0 # The pc is the same for both columns because is the same kernel
         branch_flags = [-1 for _ in range(ini_col, end_col+1)] # Branch
         exit_flags = [-1 for _ in range(ini_col, end_col+1)] # Exit
-        print(branch_flags)
         exit = False
         
         while pc < n_instr_per_col and not exit:
@@ -150,7 +143,6 @@ class SIMULATOR:
         
         print("End...")
                     
-        
 
     def setSPMLine(self, nline, vector):
         self.vwr2a.setSPMLine(nline, vector)
