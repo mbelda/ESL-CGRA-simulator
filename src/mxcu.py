@@ -94,7 +94,7 @@ class MXCU_IMEM:
         NOTE: vwr_row_we should be an 4-element array of bool/int values representing a one-hot vector of row write enable bits
         '''
         #Convert one-hot array of int/bool to binary
-        imem_word = MXCU_IMEM_WORD(vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel)
+        imem_word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
     def get_instruction_info(self, pos):
@@ -180,16 +180,16 @@ class MXCU_IMEM_WORD:
         else:
             decimal_int = int(hex_word, 16)
             binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.vwr_row_we = binary_string[:4]
-            self.vwr_sel = binary_string[4:6]
-            self.srf_sel = binary_string[6:9]
-            self.alu_srf_write = binary_string[9:11]
-            self.srf_we = binary_string[11:12]
-            self.rf_wsel = binary_string[12:15]
-            self.rf_we = binary_string[15:16]
-            self.alu_op = binary_string[16:19]
-            self.muxb_sel = binary_string[19:23]
-            self.muxa_sel = binary_string[23:27]
+            self.vwr_row_we = binary_string[23:27] # 4 bitsa
+            self.vwr_sel = binary_string[21:23] # 2 bits
+            self.srf_sel = binary_string[18:21] # 3 bits
+            self.alu_srf_write = binary_string[16:18] # 2 bits
+            self.srf_we = binary_string[15:16] # 1 bit
+            self.rf_wsel = binary_string[12:15] # 3 bits
+            self.rf_we = binary_string[11:12] # 1 bit
+            self.alu_op = binary_string[8:11] # 3 bits
+            self.muxb_sel = binary_string[4:8] # 4 bits
+            self.muxa_sel = binary_string[:4] # 4 bits
             self.word = binary_string
 
     def get_word(self):

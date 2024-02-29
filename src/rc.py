@@ -88,7 +88,7 @@ class RC_IMEM:
         '''Set the IMEM index at integer pos to the configuration parameters.
         See RC_IMEM_WORD initializer for implementation details.
         '''
-        imem_word = RC_IMEM_WORD(rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel)
+        imem_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
     def get_instruction_info(self, pos):
@@ -165,13 +165,13 @@ class RC_IMEM_WORD:
         else:
             decimal_int = int(hex_word, 16)
             binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.rf_wsel = binary_string[:1]
-            self.rf_we = binary_string[1:2]
-            self.muxf_sel = binary_string[2:5]
-            self.alu_op = binary_string[5:9]
-            self.op_mode = binary_string[9:10]
-            self.muxb_sel = binary_string[10:14]
-            self.muxa_sel = binary_string[14:18]
+            self.rf_wsel = binary_string[17:18] # 1 bit
+            self.rf_we = binary_string[16:17] # 1 bit
+            self.muxf_sel = binary_string[13:16] # 3 bits
+            self.alu_op = binary_string[9:13] # 4 bits
+            self.op_mode = binary_string[8:9] # 1 bit
+            self.muxb_sel = binary_string[4:8] # 4 bits
+            self.muxa_sel = binary_string[:4] # 4 bits
             self.word = binary_string
 
     def get_word(self):

@@ -101,7 +101,7 @@ class LSU_IMEM:
         '''Set the IMEM index at integer pos to the configuration parameters.
         See LSU_IMEM_WORD initializer for implementation details.
         '''
-        imem_word = LSU_IMEM_WORD(rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op)
+        imem_word = LSU_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel, vwr_sel_shuf_op=vwr_sel_shuf_op, mem_op=mem_op)
         self.IMEM[pos] = imem_word.get_word()
     
     def get_instruction_info(self, pos):
@@ -187,13 +187,13 @@ class LSU_IMEM_WORD:
         else:
             decimal_int = int(hex_word, 16)
             binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.rf_wsel = binary_string[:3]
-            self.rf_we = binary_string[3:4]
-            self.alu_op = binary_string[4:7]
-            self.muxb_sel = binary_string[7:11]
-            self.muxa_sel = binary_string[11:15]
-            self.vwr_sel_shuf_op = binary_string[15:18]
-            self.mem_op = binary_string[18:20]
+            self.rf_wsel = binary_string[17:20] # 3 bits
+            self.rf_we = binary_string[16:17] # 1 bit
+            self.alu_op = binary_string[13:16] # 3 bits
+            self.muxb_sel = binary_string[9:13] # 4 bits
+            self.muxa_sel = binary_string[5:9] # 4 bits
+            self.vwr_sel_shuf_op = binary_string[2:5] # 3 bits
+            self.mem_op = binary_string[:2] # 2 bits
             self.word = binary_string
     
     def get_word(self):

@@ -86,52 +86,14 @@ class LCU_IMEM:
         '''Set the IMEM index at integer pos to the configuration parameters.
         See LCU_IMEM_WORD initializer for implementation details.
         '''
-        imem_word = LCU_IMEM_WORD(imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel)
+        imem_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_info(self, pos):
+    def get_instruction_asm(self, pos):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = LCU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = imem_word.decode_word()
-        
-        print("Immediate value: {0}".format(imm))
-        
-        if br_mode == 1:
-            print ("LCU is in RC data control mode")
-        else: 
-            print ("LCU is in loop control mode")
-            
-        for op in LCU_ALU_OPS:
-            if op.value == alu_op:
-                alu_opcode = op.name
-        for sel in LCU_MUXA_SEL:
-            if sel.value == muxa_sel:
-                muxa_res = sel.name
-        for sel in LCU_MUXB_SEL:
-            if sel.value == muxb_sel:
-                muxb_res = sel.name
-        if alu_op == 0: #NOP
-            print("No LCU ALU Operation is performed")
-        elif alu_op == 9: #BEQ
-            print("If {0} and {1} are equal, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
-        elif alu_op == 10: #BNE
-            print("If {0} and {1} are NOT equal, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
-        elif alu_op == 11: #BGEPD
-            print("If {0}-1 is greater than or equal to {1}, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
-        elif alu_op == 12: #BLT
-            print("If {0} is less than {1}, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
-        elif alu_op == 13: #JUMP
-            print("Jump to address {0} + {1}".format(muxa_res, muxb_res))
-        elif alu_op == 14: #EXIT
-            print("Exiting out of kernel")
-        else:
-            print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
-        
-        if rf_we == 1:
-            print("Writing ALU result to LCU register {0}".format(rf_wsel))
-        else:
-            print("No LCU registers are being written")
+        return imem_word.get_word_in_asm()
 
             
     def get_word_in_hex(self, pos):
@@ -165,18 +127,22 @@ class LCU_IMEM_WORD:
             self.word = "".join((self.muxa_sel,self.muxb_sel,self.br_mode,self.alu_op,self.rf_we,self.rf_wsel,self.imm))
         else:
             decimal_int = int(hex_word, 16)
-            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.imm = binary_string[:6]
-            self.rf_wsel = binary_string[6:8]
-            self.rf_we = binary_string[8:9]
-            self.alu_op = binary_string[9:13]
-            self.br_mode = binary_string[13:14]
-            self.muxb_sel = binary_string[14:17]
-            self.muxa_sel = binary_string[17:20]
-            self.word = binary_string
+            binary_number = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            # Extend binary number to LCU_IMEM_WIDTH bits
+            extended_binary = binary_number.zfill(LCU_IMEM_WIDTH)
+
+            self.imm = extended_binary[14:20] # 6 bits
+            self.rf_wsel = extended_binary[12:14] # 2 bits
+            self.rf_we = extended_binary[11:12] # 1 bit
+            self.alu_op = extended_binary[7:11] # 4 bits
+            self.br_mode = extended_binary[6:7] # 1 bit
+            self.muxb_sel = extended_binary[3:6] # 3 bits
+            self.muxa_sel = extended_binary[:3] # 3 bits
+            self.word = extended_binary
     
     def get_word(self):
-        return self.word
+        return self.word      
+        
     
     def get_word_in_hex(self):
         '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
@@ -184,9 +150,54 @@ class LCU_IMEM_WORD:
     
     def get_word_in_asm(self):
         imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = self.decode_word()
-        #TODO
+                
+        # ALU op
+        alu_asm = ""
+        for op in LCU_ALU_OPS:
+            if op.value == alu_op:
+                alu_asm = op.name
+        assert(alu_asm != ""), self.__class__.__name__ + ": ALU opcode not found. Incorrect instruction parsing to asm."
 
-        pass
+        # Branch mode
+        if br_mode == 1:
+            return alu_asm + "r " + str(imm)
+
+        # NOP or EXIT
+        if alu_asm in {"NOP", "EXIT"}:
+            return alu_asm.lower()
+
+        # Muxb
+        muxb_asm = ""
+        for sel in LCU_MUXB_SEL:
+            if sel.value == muxb_sel:
+                muxb_asm = sel.name
+        assert(muxb_asm != ""), self.__class__.__name__ + ": MuxB opcode not found. Incorrect instruction parsing to asm."
+        
+        if muxb_asm == "SRF":
+            muxb_asm = "SRF(?)"
+
+        # Muxa
+        imm_asm = ""
+        muxa_asm = ""
+        for sel in LCU_MUXA_SEL:
+            if sel.value == muxa_sel:
+                muxa_asm = sel.name
+        assert(muxa_asm != ""), self.__class__.__name__ + ": MuxA opcode not found. Incorrect instruction parsing to asm."
+
+        if muxa_asm == "IMM":
+            muxa_asm = str(imm)
+            imm_asm = "i"
+        
+        if muxa_asm == "SRF":
+            muxa_asm = "SRF(?)"
+        
+        # If branches
+        if alu_asm in {"JUMP", "BEQ", "BNE", "BLT", "BGEPD"}:
+            asm_word = alu_asm.lower() + " " + muxb_asm + ", " + muxa_asm + ", " + str(imm)
+            return asm_word
+        
+        asm_word = alu_asm.lower() + imm_asm + " " + muxb_asm + ", " + muxa_asm
+        return asm_word
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''

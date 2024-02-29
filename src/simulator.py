@@ -21,7 +21,7 @@ class SIMULATOR:
         self.vwr2a = CGRA()
     
     # Save the configuration parameters of a kernel into the kmem
-    def kernel_config(self, column_usage, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number):
+    def kernel_config(self, column_usage, num_instructions_per_col, imem_add_start, srf_spm_addres, kernel_number):
         assert(len(column_usage) == 2), "Error. Column_usage format must be [True/Flase, True/False]"
         #Parse column usage from bool array [True, False] to one-hot encoded
         if column_usage[0] and column_usage[1]:
@@ -30,7 +30,7 @@ class SIMULATOR:
             col_one_hot = 1 # Only col 0
         else:
             col_one_hot = 2 # Only second col
-        self.vwr2a.kernel_config(col_one_hot, kernel_nInstr, imem_add_start, srf_spm_addres, kernel_number)
+        self.vwr2a.kernel_config(col_one_hot, num_instructions_per_col, imem_add_start, srf_spm_addres, kernel_number)
 
     def parseColUsageFromOneHot(self, col_one_hot):
         # Control the columns used
@@ -46,9 +46,10 @@ class SIMULATOR:
         return ini_col, end_col
 
     # Load the instructions of a kernel from an instructions_asm file to the general imem 
-    def kernel_load(self, kernel_path, version='', kernel_number=1):
+    def kernel_load(self, kernel_path, version="", kernel_number=1):
         # Decode the kernel number of instructions and which ones they are
         n_instr_per_col, imem_start_addr, col_one_hot, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
+        n_instr_per_col+=1
 
         # Parse columns used
         ini_col, end_col = self.parseColUsageFromOneHot(col_one_hot)
@@ -87,7 +88,8 @@ class SIMULATOR:
     def run(self, kernel_number, display_ops=[[] for _ in range(CGRA_ROWS + 4)]): # +4 -> (LCU, LSU, MXCU, SRF)
         # Decode the kernel number of instructions and which ones they are
         n_instr_per_col, imem_start_addr, col_one_hot, srf_spm_bank = self.vwr2a.kmem.imem.get_params(kernel_number)
-       
+        n_instr_per_col+=1
+
         # Control the columns used
         ini_col, end_col = self.parseColUsageFromOneHot(col_one_hot)
         
@@ -167,7 +169,7 @@ class SIMULATOR:
 
         # Load csv file with instructions
         # LCU, LSU, MXCU, RC0, RC1, ..., RCN
-        file_path = kernel_path + FILENAME_INSTR + version + EXT
+        file_path = kernel_path + FILENAME_INSTR + "_asm" + version + EXT
         print("Processing file: " +  file_path + "...")
         with open( file_path, 'r') as file:
 
