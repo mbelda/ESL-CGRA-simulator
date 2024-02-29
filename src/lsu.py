@@ -104,57 +104,11 @@ class LSU_IMEM:
         imem_word = LSU_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel, vwr_sel_shuf_op=vwr_sel_shuf_op, mem_op=mem_op)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_info(self, pos):
+    def get_instruction_asm(self, pos):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = LSU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = imem_word.decode_word()
-        
-        # See if we are performing a load/store or a shuffle
-        for op in LSU_MEM_OP:
-            if op.value == mem_op:
-                lsu_mode = op.name
-        
-        # If we are loading/storing ...
-        if ((lsu_mode == LSU_MEM_OP.STORE.name)|(lsu_mode == LSU_MEM_OP.LOAD.name)):
-            #... which register are we using?
-            for reg in LSU_VWR_SEL:
-                if reg.value == vwr_sel_shuf_op:
-                    register = reg.name
-            if (lsu_mode == LSU_MEM_OP.LOAD.name):
-                preposition1 = "from"
-                preposition2 = "to"
-            else:
-                preposition1 = "to"
-                preposition2 = "from"
-            print("Performing {0} {1} SPM {2} {3}".format(lsu_mode, preposition1, preposition2, register))
-        # If we are shuffling VWRs A and B into C ...
-        elif (lsu_mode == LSU_MEM_OP.SHUFFLE.name):
-            #... which one are we using?
-            for shuf in SHUFFLE_SEL:
-                if shuf.value == vwr_sel_shuf_op:
-                    shuffle_type = shuf.name
-            print("Shuffling VWR A and B data into VWR C using operation {0}".format(shuffle_type))
-        else: # NOP
-            print("No loading, storing, or shuffling taking place")
-        
-        for op in LSU_ALU_OPS:
-            if op.value == alu_op:
-                alu_opcode = op.name
-        for sel in LSU_MUX_SEL:
-            if sel.value == muxa_sel:
-                muxa_res = sel.name
-        for sel in LSU_MUX_SEL:
-            if sel.value == muxb_sel:
-                muxb_res = sel.name
-        
-        print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
-        
-        if rf_we == 1:
-            print("Writing ALU result to LSU register {0}".format(rf_wsel))
-        else:
-            print("No LSU registers are being written")
-        
+        return imem_word.get_word_in_asm()
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the LSU config IMEM'''
@@ -202,6 +156,74 @@ class LSU_IMEM_WORD:
     def get_word_in_hex(self):
         '''Get the hexadecimal representation of the word at index pos in the LSU config IMEM'''
         return(hex(int(self.word, 2)))
+    
+    def get_word_in_asm(self):
+        '''Get the assembly representation of the word at index pos in the LSU config IMEM'''
+        rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = self.decode_word()
+        
+        # ALU part
+        for op in LSU_ALU_OPS:
+            if op.value == alu_op:
+                alu_op = op.name
+        
+        for sel in LSU_MUX_SEL:
+            if sel.value == muxa_sel:
+                muxa_asm = sel.name
+        if muxa_asm == "SRF":
+            muxa_asm = "SRF(?)"
+
+        for sel in LSU_MUX_SEL:
+            if sel.value == muxb_sel:
+                muxb_asm = sel.name
+        if muxb_asm == "SRF":
+            muxb_asm = "SRF(?)"
+        
+        if rf_we == 1:
+            for op in LSU_DEST_REGS:
+                if op.value == rf_wsel:
+                    dest = op.name
+        else:
+            dest = "SRF(?)"
+        
+        alu_asm = alu_op + " " + dest + ", " + muxa_asm + ", " + muxb_asm
+
+        # MEM part
+        for op in LSU_MEM_OP:
+            if op.value == mem_op:
+                lsu_mode = op.name
+
+        if lsu_mode == "NOP":
+            mem_asm = lsu_mode
+        elif lsu_mode == "LOAD" or lsu_mode == "STORE":
+            for op in LSU_VWR_SEL:
+                if op.value == vwr_sel_shuf_op:
+                    vwr_srf = op.name
+            if lsu_mode == "LOAD":
+                lsu_mode = "LD.VWR"
+            else:
+                lsu_mode = "STR.VWR"
+            mem_asm = lsu_mode + " " + vwr_srf
+        else: # SHUFFLE
+            if vwr_sel_shuf_op == 0:
+                mem_asm = "SH.IL.UP"
+            elif vwr_sel_shuf_op == 1:
+                mem_asm = "SH.IL.LO"
+            elif vwr_sel_shuf_op == 2:
+                mem_asm = "SH.EVEN"
+            elif vwr_sel_shuf_op == 3:
+                mem_asm = "SH.ODD"
+            elif vwr_sel_shuf_op == 4:
+                mem_asm = "SH.BRE.UP"
+            elif vwr_sel_shuf_op == 5:
+                mem_asm = "SH.BRE.LO"
+            elif vwr_sel_shuf_op == 6:
+                mem_asm = "SH.CSHIFT.UP"
+            else:
+                mem_asm = "SH.CSHIFT.LO"
+        
+        return alu_asm + "/" + mem_asm
+        
+        
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
@@ -297,7 +319,7 @@ class LSU:
     #     pass
 
     def run(self, pc):
-        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc))
         pass
 
     def parseDestArith(self, rd, instr):

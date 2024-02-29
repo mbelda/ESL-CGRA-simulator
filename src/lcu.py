@@ -152,19 +152,17 @@ class LCU_IMEM_WORD:
         imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = self.decode_word()
                 
         # ALU op
-        alu_asm = ""
         for op in LCU_ALU_OPS:
             if op.value == alu_op:
                 alu_asm = op.name
-        assert(alu_asm != ""), self.__class__.__name__ + ": ALU opcode not found. Incorrect instruction parsing to asm."
 
         # Branch mode
         if br_mode == 1:
-            return alu_asm + "r " + str(imm)
+            return alu_asm + "R " + str(imm)
 
         # NOP or EXIT
         if alu_asm in {"NOP", "EXIT"}:
-            return alu_asm.lower()
+            return alu_asm
 
         # Muxb
         muxb_asm = ""
@@ -186,17 +184,17 @@ class LCU_IMEM_WORD:
 
         if muxa_asm == "IMM":
             muxa_asm = str(imm)
-            imm_asm = "i"
+            imm_asm = "I"
         
         if muxa_asm == "SRF":
             muxa_asm = "SRF(?)"
         
         # If branches
-        if alu_asm in {"JUMP", "BEQ", "BNE", "BLT", "BGEPD"}:
-            asm_word = alu_asm.lower() + " " + muxb_asm + ", " + muxa_asm + ", " + str(imm)
+        if alu_asm in {"BEQ", "BNE", "BLT", "BGEPD"}:
+            asm_word = alu_asm + " " + muxb_asm + ", " + muxa_asm + ", " + str(imm)
             return asm_word
         
-        asm_word = alu_asm.lower() + imm_asm + " " + muxb_asm + ", " + muxa_asm
+        asm_word = alu_asm + imm_asm + " " + muxb_asm + ", " + muxa_asm
         return asm_word
     
     def set_word(self, word):
@@ -241,7 +239,7 @@ class LCU:
         self.iregs = [self.default_word in range(LCU_NUM_CREG)]
     
     def run(self, pc):
-        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc))
         return -1,-1
     
     # def sadd( val1, val2 ):
