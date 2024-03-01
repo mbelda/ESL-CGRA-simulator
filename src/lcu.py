@@ -188,13 +188,20 @@ class LCU_IMEM_WORD:
         
         if muxa_asm == "SRF":
             muxa_asm = "SRF(?)"
+
+        if rf_we == 1:
+            for sel in LCU_DEST_REGS:
+                if sel.value == rf_wsel:
+                    dest = sel.name
+        else:
+            dest = "SRF(?)"
         
         # If branches
         if alu_asm in {"BEQ", "BNE", "BLT", "BGEPD"}:
             asm_word = alu_asm + " " + muxb_asm + ", " + muxa_asm + ", " + str(imm)
             return asm_word
         
-        asm_word = alu_asm + imm_asm + " " + muxb_asm + ", " + muxa_asm
+        asm_word = alu_asm + imm_asm + " " + dest + ", " + muxb_asm + ", " + muxa_asm
         return asm_word
     
     def set_word(self, word):

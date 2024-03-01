@@ -97,48 +97,11 @@ class MXCU_IMEM:
         imem_word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_info(self, pos):
+    def get_instruction_asm(self, pos):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = MXCU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel = imem_word.decode_word()
-        for vwr in MXCU_VWR_SEL:
-            if vwr.value == vwr_sel:
-                selected_vwr = vwr.name
-        
-        indices_of_written_rows = np.where(vwr_row_we[::-1])[0]
-        if len(indices_of_written_rows)>0:
-            print("Writing to VWR rows {0} of {1}".format(indices_of_written_rows, selected_vwr))
-        else:
-            print("Not writing to VWRs")
-        
-        if srf_we == 1:
-            for alu_res in ALU_SRF_WRITE:
-                if alu_res.value == alu_srf_write:
-                    spec_slot = alu_res.name
-            print("Writing from {0} ALU to SRF register {1}".format(spec_slot, srf_sel))
-        else:
-            print("Reading from SRF index {0}".format(srf_sel))
-        
-        for op in MXCU_ALU_OPS:
-            if op.value == alu_op:
-                alu_opcode = op.name
-        for sel in MXCU_MUX_SEL:
-            if sel.value == muxa_sel:
-                muxa_res = sel.name
-        for sel in MXCU_MUX_SEL:
-            if sel.value == muxb_sel:
-                muxb_res = sel.name
-        if alu_opcode == MXCU_ALU_OPS.NOP:
-            print("No ALU operation")
-        else:
-            print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
-        if rf_we == 1:
-            print("Writing ALU result to MXCU register {0}".format(rf_wsel))
-        else:
-            print("No MXCU registers are being written")
-        
-        
+        return imem_word.get_word_in_asm()     
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the MXCU config IMEM'''
@@ -199,6 +162,45 @@ class MXCU_IMEM_WORD:
         '''Get the hexadecimal representation of the word at index pos in the MXCU config IMEM'''
         return(hex(int(self.word, 2)))
     
+    def get_word_in_asm(self):
+        vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel = self.decode_word()
+        
+        # Parse vwr selected
+        for vwr in MXCU_VWR_SEL:
+            if vwr.value == vwr_sel:
+                selected_vwr = vwr.name
+
+        # ALU
+        for op in MXCU_ALU_OPS:
+            if op.value == alu_op:
+                alu_asm = op.name
+
+        for sel in MXCU_MUX_SEL:
+            if sel.value == muxa_sel:
+                muxa_asm = sel.name
+        if muxa_asm == "SRF":
+            muxa_asm = "SRF(" + str(srf_sel) + ")"
+        
+        for sel in MXCU_MUX_SEL:
+            if sel.value == muxb_sel:
+                muxb_asm = sel.name
+        if muxb_asm == "SRF":
+            muxb_asm = "SRF(" + str(srf_sel) + ")"
+
+        
+        for op in MXCU_DEST_REGS:
+            if op.value == rf_wsel:
+                dest = op.name
+        if dest == "SRF":
+            dest = "SRF(" + str(srf_sel) + ")"
+
+        mxcu_asm = alu_asm + " " + dest + ", " + muxa_asm + ", " + muxb_asm
+        
+        if alu_asm == "NOP":
+            mxcu_asm = alu_asm
+        
+        return mxcu_asm, selected_vwr, srf_sel
+    
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
         self.word = word
@@ -246,7 +248,8 @@ class MXCU:
         self.default_word = MXCU_IMEM_WORD().get_word()
     
     def run(self, pc):
-        print(self.__class__.__name__ + ": " + self.imem.get_word_in_hex(pc))
+        mxcu_asm , _, _ = self.imem.get_instruction_asm(pc)
+        print(self.__class__.__name__ + ": " + mxcu_asm)
         pass
 
     # def sadd( val1, val2 ):
