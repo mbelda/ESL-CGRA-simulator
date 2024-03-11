@@ -104,17 +104,67 @@ class LSU_IMEM:
         imem_word = LSU_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel, vwr_sel_shuf_op=vwr_sel_shuf_op, mem_op=mem_op)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_asm(self, pos):
+    def get_instruction_asm(self, pos, srf_sel, alu_srf_write, srf_we):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = LSU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm()
+        return imem_word.get_word_in_asm(srf_sel, alu_srf_write, srf_we)
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the LSU config IMEM'''
         return(hex(int(self.IMEM[pos],2)))
         
-    
+    def get_instruction_info(self, pos):
+        '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
+        imem_word = LSU_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_shuf_op, vwr_shuf_sel = imem_word.decode_word()
+        
+        # See if we are performing a load/store or a shuffle
+        for op in LSU_ALU_OPS:
+            if op.value == vwr_shuf_sel:
+                lsu_mode = op.name
+        
+        # If we are loading/storing ...
+        if ((lsu_mode == LSU_MEM_OP.STORE.name)|(lsu_mode == LSU_MEM_OP.LOAD.name)):
+            #... which register are we using?
+            for reg in LSU_VWR_SEL:
+                if reg.value == vwr_shuf_op:
+                    register = reg.name
+            if (lsu_mode == LSU_MEM_OP.LOAD.name):
+                preposition1 = "from"
+                preposition2 = "to"
+            else:
+                preposition1 = "to"
+                preposition2 = "from"
+            print("Performing {0} {1} SPM {2} {3}".format(lsu_mode, preposition1, preposition2, register))
+        # If we are shuffling VWRs A and B into C ...
+        elif (lsu_mode == LSU_MEM_OP.SHUFFLE.name):
+            #... which one are we using?
+            for shuf in SHUFFLE_SEL:
+                if shuf.value == vwr_shuf_op:
+                    shuffle_type = shuf.name
+            print("Shuffling VWR A and B data into VWR C using operation {0}".format(shuffle_type))
+        else: # NOP
+            print("No loading, storing, or shuffling taking place")
+        
+        for op in LSU_ALU_OPS:
+            if op.value == alu_op:
+                alu_opcode = op.name
+        for sel in LSU_MUX_SEL:
+            if sel.value == muxa_sel:
+                muxa_res = sel.name
+        for sel in LSU_MUX_SEL:
+            if sel.value == muxb_sel:
+                muxb_res = sel.name
+        
+        print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
+        
+        if rf_we == 1:
+            print("Writing ALU result to LSU register {0}".format(rf_wsel))
+        else:
+            print("No LSU registers are being written")
+        
         
 class LSU_IMEM_WORD:
     def __init__(self, hex_word=None, rf_wsel=0, rf_we=0, alu_op=LSU_ALU_OPS.LAND, muxb_sel=LSU_MUX_SEL.ZERO, muxa_sel=LSU_MUX_SEL.ZERO, vwr_sel_shuf_op=LSU_VWR_SEL.VWR_A, mem_op=LSU_MEM_OP.NOP):
@@ -140,15 +190,18 @@ class LSU_IMEM_WORD:
             self.word = "".join((self.mem_op,self.vwr_sel_shuf_op,self.muxa_sel,self.muxb_sel,self.alu_op,self.rf_we,self.rf_wsel))
         else:
             decimal_int = int(hex_word, 16)
-            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.rf_wsel = binary_string[17:20] # 3 bits
-            self.rf_we = binary_string[16:17] # 1 bit
-            self.alu_op = binary_string[13:16] # 3 bits
-            self.muxb_sel = binary_string[9:13] # 4 bits
-            self.muxa_sel = binary_string[5:9] # 4 bits
-            self.vwr_sel_shuf_op = binary_string[2:5] # 3 bits
-            self.mem_op = binary_string[:2] # 2 bits
-            self.word = binary_string
+            binary_number = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            # Extend binary number to LSU_IMEM_WIDTH bits
+            extended_binary = binary_number.zfill(LSU_IMEM_WIDTH)
+            
+            self.rf_wsel = extended_binary[17:20] # 3 bits
+            self.rf_we = extended_binary[16:17] # 1 bit
+            self.alu_op = extended_binary[13:16] # 3 bits
+            self.muxb_sel = extended_binary[9:13] # 4 bits
+            self.muxa_sel = extended_binary[5:9] # 4 bits
+            self.vwr_sel_shuf_op = extended_binary[2:5] # 3 bits
+            self.mem_op = extended_binary[:2] # 2 bits
+            self.word = extended_binary
     
     def get_word(self):
         return self.word
@@ -157,7 +210,7 @@ class LSU_IMEM_WORD:
         '''Get the hexadecimal representation of the word at index pos in the LSU config IMEM'''
         return(hex(int(self.word, 2)))
     
-    def get_word_in_asm(self):
+    def get_word_in_asm(self, srf_sel, alu_srf_write, srf_we):
         '''Get the assembly representation of the word at index pos in the LSU config IMEM'''
         rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = self.decode_word()
         
@@ -170,20 +223,25 @@ class LSU_IMEM_WORD:
             if sel.value == muxa_sel:
                 muxa_asm = sel.name
         if muxa_asm == "SRF":
-            muxa_asm = "SRF(?)"
+            muxa_asm = "SRF(" + str(srf_sel) + ")"
 
         for sel in LSU_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_asm = sel.name
         if muxb_asm == "SRF":
-            muxb_asm = "SRF(?)"
+            muxb_asm = "SRF(" + str(srf_sel) + ")"
         
         if rf_we == 1:
             for op in LSU_DEST_REGS:
                 if op.value == rf_wsel:
                     dest = op.name
         else:
-            dest = "SRF(?)"
+            # I don't know if it wants to write on SRF or just don't write.
+            # Needs to be checked with the MXCU
+            if srf_we == 1 and alu_srf_write == 3:
+                dest = "SRF(" + str(srf_sel) + ")"
+            else:
+                dest = "_"
         
         alu_asm = alu_op + " " + dest + ", " + muxa_asm + ", " + muxb_asm
 
@@ -223,8 +281,6 @@ class LSU_IMEM_WORD:
         
         return alu_asm + "/" + mem_asm
         
-        
-    
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
         self.word = word
@@ -236,7 +292,6 @@ class LSU_IMEM_WORD:
         self.vwr_sel_shuf_op = word[2:5]
         self.mem_op = word[0:2]
         
-    
     def decode_word(self):
         '''Get the configuration word parameters from the binary word'''
         rf_wsel = int(self.rf_wsel,2)
@@ -252,7 +307,7 @@ class LSU_IMEM_WORD:
     
 
 class LSU:
-    lsu_arith_ops   = { 'SADD','SSUB','SLL','SRL','LAND','LOR','LXOR' }
+    lsu_arith_ops   = { 'SADD','SSUB','SLL','SRL','LAND','LOR','LXOR', 'BITREV' }
     lsu_nop_ops     = { 'NOP' }
     lsu_mem_ops     = { 'LD.VWR','ST.VWR' }
     lsu_shuf_ops    = { 'SH.IL.UP','SH.IL.LO','SH.EVEN','SH.ODD','SH.BRE.UP','SH.BRE.LO','SH.CSHIFT.UP','SH.CSHIFT.LO' }
@@ -318,14 +373,15 @@ class LSU:
     # def shcshiftlo(self):
     #     pass
 
-    def run(self, pc):
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc))
-        pass
+    def run(self, pc, vwr2a, col):
+        _, _, srf_sel, alu_srf_write, srf_we = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, alu_srf_write, srf_we))
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')
         srf_pattern = re.compile(r'^SRF\((\d+)\)$')
+        undscr_pattern = re.compile(r'^_$')
 
         # Check if the input matches the 'R' pattern
         r_match = r_pattern.match(rd)
@@ -341,6 +397,11 @@ class LSU:
         srf_match = srf_pattern.match(rd)
         if srf_match:
             return LSU_DEST_REGS["SRF"], int(srf_match.group(1))
+        
+        # Check if the input matches the '_' pattern
+        undscr_match = undscr_pattern.match(rd)
+        if undscr_match:
+            return -1, -1
 
         return None, -1
 
@@ -462,10 +523,10 @@ class LSU:
             if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected only reads/writes to the same reg of the SRF.")
 
-            if srf_str_index == -1: # Writting on a local reg
+            if srf_str_index == -1 and dest != -1: # Writting on a local reg
                 rf_we = 1
                 rf_wsel = dest
-            else:
+            else: # Don't write
                 rf_wsel = 0
                 rf_we = 0
         else:
@@ -525,3 +586,6 @@ class LSU:
         # Return read and write srf indexes
         word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
         return srf_read_index, srf_str_index, word
+
+    def hexToAsm(self, instr, srf_sel, alu_srf_write, srf_we):
+        return LSU_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, alu_srf_write, srf_we)

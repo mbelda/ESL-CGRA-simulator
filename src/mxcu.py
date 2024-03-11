@@ -107,7 +107,46 @@ class MXCU_IMEM:
         '''Get the hexadecimal representation of the word at index pos in the MXCU config IMEM'''
         return(hex(int(self.IMEM[pos],2)))
         
-    
+    def get_instruction_info(self, pos):
+        '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
+        imem_word = MXCU_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel = imem_word.decode_word()
+        for vwr in MXCU_VWR_SEL:
+            if vwr.value == vwr_sel:
+                selected_vwr = vwr.name
+        
+        indices_of_written_rows = np.where(vwr_row_we[::-1])[0]
+        if len(indices_of_written_rows)>0:
+            print("Writing to VWR rows {0} of {1}".format(indices_of_written_rows, selected_vwr))
+        else:
+            print("Not writing to VWRs")
+        
+        if srf_we == 1:
+            for alu_res in ALU_SRF_WRITE:
+                if alu_res.value == alu_srf_write:
+                    spec_slot = alu_res.name
+            print("Writing from {0} ALU to SRF register {1}".format(spec_slot, srf_sel))
+        else:
+            print("Reading from SRF index {0}".format(srf_sel))
+        
+        for op in MXCU_ALU_OPS:
+            if op.value == alu_op:
+                alu_opcode = op.name
+        for sel in MXCU_MUX_SEL:
+            if sel.value == muxa_sel:
+                muxa_res = sel.name
+        for sel in MXCU_MUX_SEL:
+            if sel.value == muxb_sel:
+                muxb_res = sel.name
+        if alu_opcode == MXCU_ALU_OPS.NOP:
+            print("No ALU operation")
+        else:
+            print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
+        if rf_we == 1:
+            print("Writing ALU result to MXCU register {0}".format(rf_wsel))
+        else:
+            print("No MXCU registers are being written")
         
 class MXCU_IMEM_WORD:
     def __init__(self, hex_word=None, vwr_row_we=[0,0,0,0], vwr_sel=MXCU_VWR_SEL.VWR_A, srf_sel=0, alu_srf_write=ALU_SRF_WRITE.LCU, srf_we=0, rf_wsel=0, rf_we=0, alu_op=MXCU_ALU_OPS.NOP, muxb_sel=MXCU_MUX_SEL.R0, muxa_sel=MXCU_MUX_SEL.R0):
@@ -142,18 +181,21 @@ class MXCU_IMEM_WORD:
             self.word = "".join((self.muxa_sel, self.muxb_sel, self.alu_op, self.rf_we, self.rf_wsel, self.srf_we, self.alu_srf_write, self.srf_sel, self.vwr_sel, self.vwr_row_we))
         else:
             decimal_int = int(hex_word, 16)
-            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.vwr_row_we = binary_string[23:27] # 4 bitsa
-            self.vwr_sel = binary_string[21:23] # 2 bits
-            self.srf_sel = binary_string[18:21] # 3 bits
-            self.alu_srf_write = binary_string[16:18] # 2 bits
-            self.srf_we = binary_string[15:16] # 1 bit
-            self.rf_wsel = binary_string[12:15] # 3 bits
-            self.rf_we = binary_string[11:12] # 1 bit
-            self.alu_op = binary_string[8:11] # 3 bits
-            self.muxb_sel = binary_string[4:8] # 4 bits
-            self.muxa_sel = binary_string[:4] # 4 bits
-            self.word = binary_string
+            binary_number = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            # Extend binary number to LSU_IMEM_WIDTH bits
+            extended_binary = binary_number.zfill(MXCU_IMEM_WIDTH)
+
+            self.vwr_row_we = extended_binary[23:27] # 4 bitsa
+            self.vwr_sel = extended_binary[21:23] # 2 bits
+            self.srf_sel = extended_binary[18:21] # 3 bits
+            self.alu_srf_write = extended_binary[16:18] # 2 bits
+            self.srf_we = extended_binary[15:16] # 1 bit
+            self.rf_wsel = extended_binary[12:15] # 3 bits
+            self.rf_we = extended_binary[11:12] # 1 bit
+            self.alu_op = extended_binary[8:11] # 3 bits
+            self.muxb_sel = extended_binary[4:8] # 4 bits
+            self.muxa_sel = extended_binary[:4] # 4 bits
+            self.word = extended_binary
 
     def get_word(self):
         return self.word
@@ -199,7 +241,7 @@ class MXCU_IMEM_WORD:
         if alu_asm == "NOP":
             mxcu_asm = alu_asm
         
-        return mxcu_asm, selected_vwr, srf_sel
+        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
@@ -215,7 +257,6 @@ class MXCU_IMEM_WORD:
         self.muxb_sel = word[4:8]
         self.muxa_sel = word[0:4]
         
-    
     def decode_word(self):
         '''Get the configuration word parameters from the binary word'''
 
@@ -247,10 +288,14 @@ class MXCU:
         self.nInstr     = 0
         self.default_word = MXCU_IMEM_WORD().get_word()
     
-    def run(self, pc):
-        mxcu_asm , _, _ = self.imem.get_instruction_asm(pc)
-        print(self.__class__.__name__ + ": " + mxcu_asm)
-        pass
+    def run(self, pc, vwr2a):
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = self.imem.get_instruction_asm(pc)
+        write_srf = "write"
+        if srf_we == 0:
+            write_srf = "not write"
+        mxcu_hex = self.imem.get_word_in_hex(pc)
+        print(self.__class__.__name__ + ": " + mxcu_asm + ", " + mxcu_hex + ", " + selected_vwr + ", " + write_srf + " SRF(" + str(srf_sel) + ") from " + str(alu_srf_write))
+        return selected_vwr, srf_sel, alu_srf_write, srf_we
 
     # def sadd( val1, val2 ):
     #     return c_int32( val1 + val2 ).value
@@ -382,7 +427,6 @@ class MXCU:
 
         return None, -1
     
-    
     def asmToHex(self, instr, srf_sel, srf_we, alu_srf_write, vwr_row_we, vwr_sel):
         # Set default value for params
         rf_wsel=0
@@ -475,3 +519,10 @@ class MXCU:
         word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
         return word
         
+    def hexToAsm(self, instr):
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = MXCU_IMEM_WORD(hex_word=instr).get_word_in_asm()
+        return mxcu_asm
+
+    def hexToAsmPlus(self, instr):
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = MXCU_IMEM_WORD(hex_word=instr).get_word_in_asm()
+        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we

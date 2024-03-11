@@ -121,13 +121,14 @@ class SIMULATOR:
             print("PC: " + str(pc))
             for col in range(ini_col, end_col+1):
                 print("Col: " + str(col))
-                self.vwr2a.lsus[col].run(pc) # Check if they need anything from the others
-                self.vwr2a.mxcus[col].run(pc)
+                selected_vwr, srf_sel, alu_srf_write, srf_we = self.vwr2a.mxcus[col].run(pc, self.vwr2a)
+                self.vwr2a.lsus[col].run(pc, self.vwr2a, col) # Check if they need anything from the others
+                
                 for rc in range(CGRA_ROWS):
-                    self.vwr2a.rcs[col][rc].run(pc)
+                    self.vwr2a.rcs[col][rc].run(pc, self.vwr2a, col)
                 # update shared registers with neighbours value
                 # Last the LCU because it might need the ALU flags of the RCs
-                branch_flags[col], exit_flags[col] = self.vwr2a.lcus[col].run(pc) # Is a branch is taken, returns the inm
+                branch_flags[col], exit_flags[col] = self.vwr2a.lcus[col].run(pc, self.vwr2a, col) # Is a branch is taken, returns the inm
             pc+=1 # Update pc
             # Check branches
             bflags = np.array(branch_flags)
@@ -160,7 +161,7 @@ class SIMULATOR:
         for i in range(SPM_NLINES):
             self.displaySPMLine(i)
     
-    def compileAsm(self, kernel_path, version="", nInstrPerCol=0, colUsage=[False,False], imem_start_addr=0):
+    def compileAsmToHex(self, kernel_path, version="", nInstrPerCol=0, colUsage=[False,False], imem_start_addr=0):
         # String buffers
         LCU_instr = [[] for _ in range(CGRA_COLS)]
         LSU_instr = [[] for _ in range(CGRA_COLS)]
@@ -283,7 +284,6 @@ class SIMULATOR:
                     elems_to_write.append(self.vwr2a.imem.rcs_imem[rc][i].get_word_in_hex())
                 writer.writerow(elems_to_write)
 
-
     def create_header_file(self, kernel_path):
         file_name = kernel_path + 'dsip_bitstream.h'
         with open(file_name, 'w+') as file:
@@ -328,4 +328,73 @@ class SIMULATOR:
 
             # Write the endif of the header file
             file.write("#endif // _DSIP_BITSTREAM_H_")
+        
+    def compileHexToAsm(self, kernel_path, version=""):
+        # String buffers
+        LCU_instr_hex = []
+        LSU_instr_hex = []
+        MXCU_instr_hex = []
+        RCs_instr_hex = [[] for _ in range(CGRA_ROWS)]
+
+        LCU_instr_asm = []
+        LSU_instr_asm = []
+        MXCU_instr_asm = []
+        RCs_instr_asm = [[] for _ in range(CGRA_ROWS)]
+
+        # Load csv file with instructions
+        # LCU, LSU, MXCU, RC0, RC1, ..., RCN
+        file_path_hex = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
+        print("Processing file: " +  file_path_hex + "...")
+        with open( file_path_hex, 'r') as file:
+            # Create a CSV reader object
+            csv_reader = csv.reader(file)
+            # Skip the header (first row)
+            next(csv_reader, None)
+
+            # For each used column read the number of instructions
+            for row in csv_reader:
+                LCU_instr_hex.append(row[1])
+                LSU_instr_hex.append(row[2])
+                MXCU_instr_hex.append(row[3])
+                index = 4
+                for rc in range(CGRA_ROWS):
+                    RCs_instr_hex[rc].append(row[index])
+                    index+=1
+        # Translate
+        lcu = self.vwr2a.lcus[0]
+        lsu = self.vwr2a.lsus[0]
+        rcs = self.vwr2a.rcs[0]
+        mxcu = self.vwr2a.mxcus[0]
+        srf = self.vwr2a.srfs[0]
+        for i in range(len(LCU_instr_hex)):
+            # For MXCU
+            mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = mxcu.hexToAsmPlus(MXCU_instr_hex[i])
+            MXCU_instr_asm.append(mxcu_asm)
+            # For LCU
+            LCU_instr_asm.append(lcu.hexToAsm(LCU_instr_hex[i], srf_sel))
+            # For LSU
+            LSU_instr_asm.append(lsu.hexToAsm(LSU_instr_hex[i], srf_sel, alu_srf_write, srf_we))
+            # For RCs
+            for row in range(CGRA_ROWS):
+               RCs_instr_asm[row].append(rcs[row].hexToAsm(RCs_instr_hex[row][i], srf_sel, selected_vwr))
+            
+        
+        # Write the asm file
+        file_name_asm = kernel_path + FILENAME_INSTR + "_asm" + version + EXT
+        with open(file_name_asm, 'w+') as csvfile:
+            writer = csv.writer(csvfile)
+
+            # Header
+            header = ["LCU","LSU","MXCU"]
+            for i in range(CGRA_ROWS):
+                header.append("RC" + str(i))
+            writer.writerow(header)
+
+            # Each instruction
+            for i in range(len(LCU_instr_asm)):
+                elems_to_write = [LCU_instr_asm[i], LSU_instr_asm[i], MXCU_instr_asm[i]]
+                for rc in range(CGRA_ROWS):
+                    elems_to_write.append(RCs_instr_asm[rc][i])
+                writer.writerow(elems_to_write)
+    
         

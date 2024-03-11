@@ -89,12 +89,55 @@ class LCU_IMEM:
         imem_word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_asm(self, pos):
+    def get_instruction_asm(self, pos, srf_sel):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = LCU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm()
-
+        return imem_word.get_word_in_asm(srf_sel)
+    
+    def get_instruction_info(self, pos):
+        '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
+        imem_word = LCU_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = imem_word.decode_word()
+        
+        print("Immediate value: {0}".format(imm))
+        
+        if br_mode == 1:
+            print ("LCU is in RC data control mode")
+        else: 
+            print ("LCU is in loop control mode")
+            
+        for op in LCU_ALU_OPS:
+            if op.value == alu_op:
+                alu_opcode = op.name
+        for sel in LCU_MUXA_SEL:
+            if sel.value == muxa_sel:
+                muxa_res = sel.name
+        for sel in LCU_MUXB_SEL:
+            if sel.value == muxb_sel:
+                muxb_res = sel.name
+        if alu_op == 0: #NOP
+            print("No LCU ALU Operation is performed")
+        elif alu_op == 9: #BEQ
+            print("If {0} and {1} are equal, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
+        elif alu_op == 10: #BNE
+            print("If {0} and {1} are NOT equal, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
+        elif alu_op == 11: #BGEPD
+            print("If {0}-1 is greater than or equal to {1}, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
+        elif alu_op == 12: #BLT
+            print("If {0} is less than {1}, branch to the immediate value {2}".format(muxa_res, muxb_res, imm))
+        elif alu_op == 13: #JUMP
+            print("Jump to address {0} + {1}".format(muxa_res, muxb_res))
+        elif alu_op == 14: #EXIT
+            print("Exiting out of kernel")
+        else:
+            print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
+        
+        if rf_we == 1:
+            print("Writing ALU result to LCU register {0}".format(rf_wsel))
+        else:
+            print("No LCU registers are being written")
             
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
@@ -143,12 +186,11 @@ class LCU_IMEM_WORD:
     def get_word(self):
         return self.word      
         
-    
     def get_word_in_hex(self):
         '''Get the hexadecimal representation of the word at index pos in the LCU config IMEM'''
         return(hex(int(self.word, 2)))
     
-    def get_word_in_asm(self):
+    def get_word_in_asm(self, srf_sel):
         imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = self.decode_word()
                 
         # ALU op
@@ -172,7 +214,7 @@ class LCU_IMEM_WORD:
         assert(muxb_asm != ""), self.__class__.__name__ + ": MuxB opcode not found. Incorrect instruction parsing to asm."
         
         if muxb_asm == "SRF":
-            muxb_asm = "SRF(?)"
+            muxb_asm = "SRF(" + str(srf_sel) + ")"
 
         # Muxa
         imm_asm = ""
@@ -187,14 +229,14 @@ class LCU_IMEM_WORD:
             imm_asm = "I"
         
         if muxa_asm == "SRF":
-            muxa_asm = "SRF(?)"
+            muxa_asm = "SRF(" + str(srf_sel) + ")"
 
         if rf_we == 1:
             for sel in LCU_DEST_REGS:
                 if sel.value == rf_wsel:
                     dest = sel.name
         else:
-            dest = "SRF(?)"
+            dest = "SRF(" + str(srf_sel) + ")"
         
         # If branches
         if alu_asm in {"BEQ", "BNE", "BLT", "BGEPD"}:
@@ -215,7 +257,6 @@ class LCU_IMEM_WORD:
         self.muxb_sel = word[3:6]
         self.muxa_sel = word[0:3]
         
-    
     def decode_word(self):
         '''Get the configuration word parameters from the binary word'''
         imm = int(self.imm,2)
@@ -245,8 +286,9 @@ class LCU:
         self.default_word = LCU_IMEM_WORD().get_word()
         self.iregs = [self.default_word in range(LCU_NUM_CREG)]
     
-    def run(self, pc):
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc))
+    def run(self, pc, vwr2a, col):
+        _, _, srf_sel, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel))
         return -1,-1
     
     # def sadd( val1, val2 ):
@@ -620,5 +662,6 @@ class LCU:
         
         raise ValueError("Instruction not valid for LCU: " + instr + ". Operation not recognised.")
 
-
+    def hexToAsm(self, instr, srf_sel):
+        return LCU_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel)
     

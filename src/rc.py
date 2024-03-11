@@ -91,17 +91,56 @@ class RC_IMEM:
         imem_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_asm(self, pos):
+    def get_instruction_asm(self, pos, srf_sel, selected_vwr):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = RC_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm()       
+        return imem_word.get_word_in_asm(srf_sel, selected_vwr)       
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the RC config IMEM'''
         return(hex(int(self.IMEM[pos],2)))
         
-    
+    def get_instruction_info(self, pos):
+        '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
+        imem_word = RC_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = imem_word.decode_word()
+        
+        
+        if op_mode==0:
+            precision = "32-bit"
+        else:
+            precision = "16-bit"
+        
+        
+        for op in RC_ALU_OPS:
+            if op.value == alu_op:
+                alu_opcode = op.name
+        for sel in RC_MUX_SEL:
+            if sel.value == muxa_sel:
+                muxa_res = sel.name
+        for sel in RC_MUX_SEL:
+            if sel.value == muxb_sel:
+                muxb_res = sel.name
+        for sel in RC_MUXF_SEL:
+            if sel.value == muxf_sel:
+                muxf_res = sel.name
+                
+        if alu_opcode == RC_ALU_OPS.NOP.name:
+            print("No ALU operation")
+        elif (alu_opcode == RC_ALU_OPS.INB_SF_INA.name):
+            print("Output {0} if sign flag of {1} == 1, else output {2}".format(muxa_res, muxf_res, muxb_res))
+        elif (alu_opcode == RC_ALU_OPS.INB_ZF_INA.name):
+            print("Output {0} if zero flag of {1} == 1, else output {2}".format(muxa_res, muxf_res, muxb_res))
+        else:
+            print("Performing ALU operation {0} between operands {1} and {2}".format(alu_opcode, muxa_res, muxb_res))
+            print("ALU is performing operations with {0} precision".format(precision))
+        
+        if rf_we == 1:
+            print("Writing ALU result to RC register {0}".format(rf_wsel))
+        else:
+            print("No RC registers are being written")
         
 class RC_IMEM_WORD:
     def __init__(self, hex_word=None, rf_wsel=0, rf_we=0, muxf_sel=RC_MUXF_SEL.OWN, alu_op=RC_ALU_OPS.NOP, op_mode=0, muxb_sel=RC_MUX_SEL.VWR_A, muxa_sel=RC_MUX_SEL.VWR_A):
@@ -127,15 +166,17 @@ class RC_IMEM_WORD:
             self.word = "".join((self.muxa_sel,self.muxb_sel,self.op_mode,self.alu_op,self.muxf_sel,self.rf_we,self.rf_wsel))
         else:
             decimal_int = int(hex_word, 16)
-            binary_string = bin(decimal_int)[2:]  # Removing the '0b' prefix
-            self.rf_wsel = binary_string[17:18] # 1 bit
-            self.rf_we = binary_string[16:17] # 1 bit
-            self.muxf_sel = binary_string[13:16] # 3 bits
-            self.alu_op = binary_string[9:13] # 4 bits
-            self.op_mode = binary_string[8:9] # 1 bit
-            self.muxb_sel = binary_string[4:8] # 4 bits
-            self.muxa_sel = binary_string[:4] # 4 bits
-            self.word = binary_string
+            binary_number = bin(decimal_int)[2:]  # Removing the '0b' prefix
+            # Extend binary number to LSU_IMEM_WIDTH bits
+            extended_binary = binary_number.zfill(RC_IMEM_WIDTH)
+            self.rf_wsel = extended_binary[17:18] # 1 bit
+            self.rf_we = extended_binary[16:17] # 1 bit
+            self.muxf_sel = extended_binary[13:16] # 3 bits
+            self.alu_op = extended_binary[9:13] # 4 bits
+            self.op_mode = extended_binary[8:9] # 1 bit
+            self.muxb_sel = extended_binary[4:8] # 4 bits
+            self.muxa_sel = extended_binary[:4] # 4 bits
+            self.word = extended_binary
 
     def get_word(self):
         return self.word
@@ -144,7 +185,7 @@ class RC_IMEM_WORD:
         '''Get the hexadecimal representation of the word at index pos in the RC config IMEM'''
         return(hex(int(self.word, 2)))
     
-    def get_word_in_asm(self):
+    def get_word_in_asm(self, srf_sel, selected_vwr):
         rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = self.decode_word()
         
         # Half-precision
@@ -158,22 +199,22 @@ class RC_IMEM_WORD:
             if sel.value == muxa_sel:
                 muxa_asm = sel.name
         if muxa_asm == "SRF":
-            muxa_asm = "SRF(?)"
+            muxa_asm = "SRF(" + str(srf_sel) + ")"
 
         for sel in RC_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_asm = sel.name
         if muxb_asm == "SRF":
-            muxb_asm = "SRF(?)"
+            muxb_asm = "SRF(" + str(srf_sel) + ")"
         
         
         for sel in RC_DEST_REGS:
             if sel.value == rf_wsel:
                 dest = sel.name
         if dest == "SRF":
-            dest = "SRF(?)"
+            dest = "SRF(" + str(srf_sel) + ")"
         if dest == "VWR":
-            dest = "VWR_X[?]"
+            dest = selected_vwr # The index is the value of the resgiter R0 of the MXCU unit
 
         # ALU ops
         for op in RC_ALU_OPS:
@@ -213,7 +254,6 @@ class RC_IMEM_WORD:
         self.muxb_sel = word[4:8]
         self.muxa_sel = word[0:4]
         
-    
     def decode_word(self):
         '''Get the configuration word parameters from the binary word'''
         rf_wsel = int(self.rf_wsel,2)
@@ -228,7 +268,7 @@ class RC_IMEM_WORD:
         return rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel
     
 class RC:
-    rc_arith_ops   = {  'SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR','SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FP','DIV.FP' }
+    rc_arith_ops   = {  'SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FP','DIV.FP' }
     rc_flag_ops     = { 'SFGA','ZFGA' }
     rc_nop_ops      = { 'NOP' }
 
@@ -238,9 +278,9 @@ class RC:
         self.nInstr     = 0
         self.default_word = RC_IMEM_WORD().get_word()
     
-    def run(self, pc):
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc))
-        pass
+    def run(self, pc, vwr2a, col):
+        _, selected_vwr, srf_sel, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, selected_vwr))
 
     # def sadd( val1, val2 ):
     #     return c_int32( val1 + val2 ).value
@@ -546,3 +586,6 @@ class RC:
         
 
         raise ValueError("Instruction not valid for RC: " + instr + ". Operation not recognised.")
+
+    def hexToAsm(self, instr, srf_sel, selected_vwr):
+        return RC_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, selected_vwr)
