@@ -96,7 +96,12 @@ class RC_IMEM:
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = RC_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm(srf_sel, selected_vwr)       
+        return imem_word.get_word_in_asm(srf_sel, selected_vwr)   
+    
+    def get_instr_pseudo_asm(self, pos):
+        imem_word = RC_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        return imem_word.get_word_pseudo_asm()   
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the RC config IMEM'''
@@ -244,6 +249,14 @@ class RC_IMEM_WORD:
 
         return rc_asm
     
+    def get_word_pseudo_asm(self):
+        asm = self.get_word_in_asm(0,0)
+        # Replace SRF number
+        asm = re.sub(r'SRF\(\d+\)', 'SRF(X)', asm)
+        # Replace VWR letter
+        asm = re.sub(r'VWR_\w', 'VWR_X', asm)
+        return asm    
+
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
         self.word = word

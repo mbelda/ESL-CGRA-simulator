@@ -109,6 +109,11 @@ class LSU_IMEM:
         imem_word = LSU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
         return imem_word.get_word_in_asm(srf_sel, alu_srf_write, srf_we)
+    
+    def get_instr_pseudo_asm(self, pos):
+        imem_word = LSU_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        return imem_word.get_word_pseudo_asm()
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the LSU config IMEM'''
@@ -282,6 +287,12 @@ class LSU_IMEM_WORD:
         
         return alu_asm + "/" + mem_asm
         
+    def get_word_pseudo_asm(self):
+        asm = self.get_word_in_asm(0,0,0)
+        # Replace SRF number
+        asm = re.sub(r'SRF\(\d+\)', 'SRF(X)', asm)
+        return asm
+
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
         self.word = word
@@ -319,36 +330,6 @@ class LSU:
         self.nInstr     = 0
         self.default_word = LSU_IMEM_WORD().get_word()
         self.alu = ALU()
-    
-    # def load_vwr(self):
-    #     pass
-
-    # def store_vwr(self):
-    #     pass
-
-    # def shilup(self):
-    #     pass
-    
-    # def shillo(self):
-    #     pass
-
-    # def sheven(self):
-    #     pass
-
-    # def shodd(self):
-    #     pass
-
-    # def shbreup(self):
-    #     pass
-
-    # def shbrelo(self):
-    #     pass
-
-    # def shcshiftup(self):
-    #     pass
-
-    # def shcshiftlo(self):
-    #     pass
     
     def getMuxValue(self, mux, vwr2a, col, srf_sel):
         if mux <= 7 : # Rx

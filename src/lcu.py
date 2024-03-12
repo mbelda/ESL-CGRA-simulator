@@ -95,6 +95,11 @@ class LCU_IMEM:
         imem_word.set_word(self.IMEM[pos])
         return imem_word.get_word_in_asm(srf_sel)
     
+    def get_instr_pseudo_asm(self, pos):
+        imem_word = LCU_IMEM_WORD()
+        imem_word.set_word(self.IMEM[pos])
+        return imem_word.get_word_pseudo_asm()
+    
     def get_instruction_info(self, pos):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = LCU_IMEM_WORD()
@@ -245,6 +250,12 @@ class LCU_IMEM_WORD:
         
         asm_word = alu_asm + imm_asm + " " + dest + ", " + muxb_asm + ", " + muxa_asm
         return asm_word
+    
+    def get_word_pseudo_asm(self):
+        asm = self.get_word_in_asm(0)
+        # Replace SRF number
+        asm = re.sub(r'SRF\(\d+\)', 'SRF(X)', asm)
+        return asm
     
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''

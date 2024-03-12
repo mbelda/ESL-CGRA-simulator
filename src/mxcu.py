@@ -102,7 +102,11 @@ class MXCU_IMEM:
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = MXCU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm()     
+        return imem_word.get_word_in_asm()
+
+    def get_instr_pseudo_asm(self, pos):
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = self.get_instruction_asm(pos)
+        return mxcu_asm
         
     def get_word_in_hex(self, pos):
         '''Get the hexadecimal representation of the word at index pos in the MXCU config IMEM'''
@@ -244,6 +248,9 @@ class MXCU_IMEM_WORD:
         
         return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we
     
+    def get_word_pseudo_asm(self):
+        return self.get_word_in_asm()
+
     def set_word(self, word):
         '''Set the binary configuration word of the kernel memory'''
         self.word = word
