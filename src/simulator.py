@@ -113,36 +113,33 @@ class SIMULATOR:
 
         # Execute each instruction cycle by cycle        
         pc = 0 # The pc is the same for both columns because is the same kernel
-        branch_flags = [-1 for _ in range(ini_col, end_col+1)] # Branch
-        exit_flags = [-1 for _ in range(ini_col, end_col+1)] # Exit
         exit = False
         
         while pc < n_instr_per_col and not exit:
-            print("PC: " + str(pc))
+            print("---------------------------------------------")
+            print("                PC: " + str(pc))
+            print("---------------------------------------------")
             for col in range(ini_col, end_col+1):
-                print("Col: " + str(col))
-                selected_vwr, srf_sel, alu_srf_write, srf_we = self.vwr2a.mxcus[col].run(pc, self.vwr2a)
+                print("------- Col: " + str(col) + " -------")
+                self.vwr2a.mxcus[col].run(pc, self.vwr2a, col)
                 self.vwr2a.lsus[col].run(pc, self.vwr2a, col) # Check if they need anything from the others
-                
                 for rc in range(CGRA_ROWS):
                     self.vwr2a.rcs[col][rc].run(pc, self.vwr2a, col)
-                # update shared registers with neighbours value
-                # Last the LCU because it might need the ALU flags of the RCs
-                branch_flags[col], exit_flags[col] = self.vwr2a.lcus[col].run(pc, self.vwr2a, col) # Is a branch is taken, returns the inm
+                # Last the LCU because it might need the ALU flags of the RCs and modifies VWR and SRF
+                self.vwr2a.lcus[col].run(pc, self.vwr2a, col)
+            self.vwr2a.updateSharedValues()
             pc+=1 # Update pc
             # Check branches
-            bflags = np.array(branch_flags)
-            bflags = bflags[bflags != -1]
-            if (len(bflags) == 1):
-                for col in range(ini_col, end_col+1):
-                    if branch_flags[col] != -1:
-                        pc = branch_flags[col]
-            elif (len(bflags) == 2):
-                raise Exception("Two branches taken in the same cycle")
+            branches = 0
+            for col in range(ini_col, end_col+1):
+                if self.vwr2a.lcus[col].branch == 1:
+                    branches += 1
+                    pc = self.vwr2a.lcus[col].branch_pc
+            assert(branches <= 1), "More than one branch at the same cycle"
             # Check exit
-            exflags = np.array(exit_flags)
-            exflags = exflags[exflags != -1]
-            exit = (len(exflags) != 0)
+            for col in range(ini_col, end_col+1):
+                if self.vwr2a.lcus[col].exit == 1:
+                    exit = True
         
         print("End...")
                     
@@ -263,8 +260,8 @@ class SIMULATOR:
                 imem_addr+=1
         
         # Write instructions to bitstream
-        self.create_header_file(kernel_path)
-        self.create_hex_csv_file(kernel_path, version)
+        self.create_header_file(kernel_path + "test")
+        self.create_hex_csv_file(kernel_path + "test", version)
 
     def create_hex_csv_file(self, kernel_path, version):
         file_name = kernel_path + FILENAME_INSTR + "_hex" + version + EXT

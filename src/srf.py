@@ -1,7 +1,6 @@
 import numpy as np
 
-# Scalar register file
-SRF_N_REGS = 8
+from .params import *
 
 class SRF():
     def __init__(self):

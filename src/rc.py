@@ -6,7 +6,8 @@ import numpy as np
 from enum import Enum
 from ctypes import c_int32
 import re
-
+from .params import *
+from .alu import *
 from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
@@ -264,7 +265,6 @@ class RC_IMEM_WORD:
         muxb_sel = int(self.muxb_sel,2)
         muxa_sel = int(self.muxa_sel,2)
         
-        
         return rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel
     
 class RC:
@@ -274,90 +274,125 @@ class RC:
 
     def __init__(self):
         self.regs       = [0 for _ in range(RC_NUM_DREG)]
+        assert(CGRA_ROWS > 1 and CGRA_COLS > 1), self.__class__.__name__ + ": CGRA too small, at least 4 neighbours per RC"
+        self.neighbours = [ALU() for _ in range(4)] # RCT, RCB, RCL, RCR
         self.imem       = RC_IMEM()
         self.nInstr     = 0
         self.default_word = RC_IMEM_WORD().get_word()
+        self.alu = ALU()
     
+    # Returns the value for mux
+    def getMuxValue(self, mux, vwr2a, col, srf_sel):
+        mxcu_r0 = vwr2a.mxcus[col].regs[0] # VWR_IDX
+        if mux == 0: # VWR_A
+            mxcu_r5 = vwr2a.mxcus[col].regs[5] # MASK_VWR_A
+            slice_idx = mxcu_r0 & mxcu_r5
+            muxValue = vwr2a.vwrs[col][0].getIdx(slice_idx)
+        elif mux == 1: # VWR_B
+            mxcu_r6 = vwr2a.mxcus[col].regs[6] # MASK_VWR_B
+            slice_idx = mxcu_r0 & mxcu_r6
+            muxValue = vwr2a.vwrs[col][1].getIdx(slice_idx)
+        elif mux == 2: # VWR_C
+            mxcu_r7 = vwr2a.mxcus[col].regs[7] # MASK_VWR_C
+            slice_idx = mxcu_r0 & mxcu_r7
+            muxValue = vwr2a.vwrs[col][2].getIdx(slice_idx)
+        elif mux == 3: # SRF
+            muxValue = vwr2a.srfs[col].regs[srf_sel]
+        elif mux == 4: # R0
+            muxValue = self.regs[0]
+        elif mux == 5: # R1
+            muxValue = self.regs[1]
+        elif mux == 6: # RCT
+            muxValue = self.neighbours[0].res
+        elif mux == 7: # RCB
+            muxValue = self.neighbours[1].res
+        elif mux == 8: # RCL
+            muxValue = self.neighbours[2].res
+        elif mux == 9: # RCR
+            muxValue = self.neighbours[3].res
+        elif mux == 10: # ZERO
+            muxValue = 0
+        elif mux == 11: # ONE
+            muxValue = 1
+        elif mux == 12: # MAX_INT
+            muxValue = MAX_32b
+        elif mux == 13: # MIN_INT
+            muxValue = MIN_32b
+        else:
+            raise Exception(self.__class__.__name__ + ": Mux value not recognized")
+        return muxValue
+
+    def runAlu(self, alu_op, muxa_val, muxb_val, half_precision, muxf_sel):
+        if alu_op == 0: # NOP
+            self.alu.nop()
+        elif alu_op == 1: # SADD
+            if half_precision: self.alu.saddh(muxa_val, muxb_val)
+            else:  self.alu.sadd(muxa_val, muxb_val)
+        elif alu_op == 2: # SSUB
+            if half_precision: self.alu.ssubh(muxa_val, muxb_val)
+            else:  self.alu.ssub(muxa_val, muxb_val)
+        elif alu_op == 3: # SMUL
+            if half_precision:  self.alu.smulh(muxa_val, muxb_val)
+            else:  self.alu.smul(muxa_val, muxb_val)
+        elif alu_op == 4: # SDIV
+            if half_precision:  self.alu.sdivh(muxa_val, muxb_val)
+            else:  self.alu.sdiv(muxa_val, muxb_val)
+        elif alu_op == 5: # SLL
+            if half_precision:  self.alu.sllh(muxa_val, muxb_val)
+            else:  self.alu.sll(muxa_val, muxb_val)
+        elif alu_op == 6: # SRL
+            if half_precision:  self.alu.srlh(muxa_val, muxb_val)
+            else:  self.alu.srl(muxa_val, muxb_val)
+        elif alu_op == 7: # SRA
+            if half_precision:  self.alu.srah(muxa_val, muxb_val)
+            else:  self.alu.sra(muxa_val, muxb_val)
+        elif alu_op == 8: # LAND
+            if half_precision:  self.alu.landh(muxa_val, muxb_val)
+            else:  self.alu.land(muxa_val, muxb_val)
+        elif alu_op == 9: # LOR
+            if half_precision:  self.alu.lorh(muxa_val, muxb_val)
+            else:  self.alu.lor(muxa_val, muxb_val)
+        elif alu_op == 10: # LXOR
+            if half_precision:  self.alu.lxorh(muxa_val, muxb_val)
+            else:  self.alu.lxor(muxa_val, muxb_val)
+        elif alu_op == 11 or alu_op == 12: # INB_SF_INA or INB_ZF_INA
+            if muxf_sel == 0: # OWN
+                s_flag = self.alu.sign_flag
+                z_flag = self.alu.zero_flag
+            else:
+                s_flag = self.neighbours[muxf_sel-1].sign_flag
+                z_flag = self.neighbours[muxf_sel-1].zero_flag
+            if alu_op == 11:
+                 self.alu.sfga(muxa_val, muxb_val, s_flag)
+            else:
+                 self.alu.zfga(muxa_val, muxb_val, z_flag)
+        elif alu_op == 13: # FP_MUL
+             self.alu.mul_fp(muxa_val, muxb_val)
+        elif alu_op == 14: # FP_DIV
+             self.alu.div_fp(muxa_val, muxb_val)
+        else:
+            raise Exception(self.__class__.__name__ + ": ALU op not recognized")
+                
+        
     def run(self, pc, vwr2a, col):
+        # MXCU info
         _, selected_vwr, srf_sel, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, selected_vwr))
+        # This RC instruction
+        rc_hex = self.imem.get_word_in_hex(pc)
+        rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = RC_IMEM_WORD(hex_word=rc_hex).decode_word()
+        # Get muxes value
+        muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel)
+        muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel)
+        # ALU op
+        self.runAlu(alu_op, muxa_val, muxb_val, op_mode, muxf_sel)
+        # Write result locally
+        if rf_we == 1:
+            self.regs[rf_wsel] = self.alu.newRes
 
-    # def sadd( val1, val2 ):
-    #     return c_int32( val1 + val2 ).value
-
-    # def ssub( val1, val2 ):
-    #     return c_int32( val1 - val2 ).value
-
-    # def sll( val1, val2 ):
-    #     return c_int32(val1 << val2).value
-
-    # def srl( val1, val2 ):
-    #     interm_result = (c_int32(val1).value & MAX_32b)
-    #     return c_int32(interm_result >> val2).value
-
-    # def sra( val1, val2 ):
-    #     return c_int32(val1 >> val2).value
-
-    # def lor( val1, val2 ):
-    #     return c_int32( val1 | val2).value
-
-    # def land( val1, val2 ):
-    #     return c_int32( val1 & val2).value
-
-    # def lxor( val1, val2 ):
-    #     return c_int32( val1 ^ val2).value
-    
-    # def smul(self):
-    #     pass
-
-    # def sdiv(self, imm):
-    #     pass
-    
-    # def saddh( val1, val2 ):
-    #     raise ValueError("Half precision add not supported.")
-
-    # def ssubh( val1, val2 ):
-    #     raise ValueError("Half precision sub not supported.")
-
-    # def sllh( val1, val2 ):
-    #     raise ValueError("Half precision sll not supported.")
-
-    # def srlh( val1, val2 ):
-    #     raise ValueError("Half precision srl not supported.")
-    
-    # def srah( val1, val2 ):
-    #     raise ValueError("Half precision sra not supported.")
-
-    # def lorh( val1, val2 ):
-    #     raise ValueError("Half precision lor not supported.")
-
-    # def landh( val1, val2 ):
-    #     raise ValueError("Half precision land not supported.")
-
-    # def lxorh( val1, val2 ):
-    #     raise ValueError("Half precision lxor not supported.")
-
-    # def smulh(self):
-    #     raise ValueError("Half precision mul not supported.")
-
-    # def sdivh(self, imm):
-    #     raise ValueError("Half precision div not supported.")
-
-    # def nop(self):
-    #     pass # Intentional
-
-    # def mul_fp(self):
-    #     pass
-
-    # def div_fp(self, imm):
-    #     pass
-
-    # def sfga(self):
-    #     pass
-
-    # def zfga(self, imm):
-    #     pass
-
+        # ---------- Print something -----------
+        rc_asm = self.imem.get_instruction_asm(pc, srf_sel, selected_vwr)
+        print(self.__class__.__name__ + ": " + rc_asm + " --> " + str(self.alu.newRes))
+        
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')

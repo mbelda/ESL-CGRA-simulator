@@ -1,7 +1,4 @@
-# Scratchpad memory configuration
-SPM_NWORDS = 128
-SPM_NLINES = 64
-
+from .params import *
 class SPM:
     def __init__(self):
         self.lines = [[0 for _ in range(SPM_NWORDS)] for _ in range(SPM_NLINES)]

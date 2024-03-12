@@ -6,6 +6,7 @@ import numpy as np
 from enum import Enum
 from ctypes import c_int32
 import re
+from .alu import *
 
 from .srf import SRF_N_REGS
 
@@ -287,15 +288,93 @@ class MXCU:
         self.imem       = MXCU_IMEM()
         self.nInstr     = 0
         self.default_word = MXCU_IMEM_WORD().get_word()
+        self.alu = ALU()
     
-    def run(self, pc, vwr2a):
-        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = self.imem.get_instruction_asm(pc)
-        write_srf = "write"
-        if srf_we == 0:
-            write_srf = "not write"
+    def getMuxValue(self, mux, vwr2a, col, srf_sel):
+        if mux <= 7 : # Rx
+            muxValue = self.regs[mux]
+        elif mux == 8: # SRF
+            muxValue = vwr2a.srfs[col].regs[srf_sel]
+        elif mux == 9: # ZERO
+            muxValue = 0
+        elif mux == 10: # ONE
+            muxValue = 1
+        elif mux == 11: # TWO
+            muxValue = 2
+        elif mux == 12: # HALF
+            muxValue = int(SPM_NWORDS/CGRA_ROWS/2) -1 # 128/4/2 -1 = 15 (half index)
+        elif mux == 13: # LAST
+            muxValue = int(SPM_NWORDS/CGRA_ROWS) -1 # 128/4 -1 = 31 (last index)
+        else:
+            raise Exception(self.__class__.__name__ + ": Mux value not recognized")
+        return muxValue
+    
+    def runAlu(self, alu_op, muxa_val, muxb_val):
+        if alu_op == 0: # NOP
+            self.alu.nop()
+        elif alu_op == 1: # SADD
+            self.alu.sadd(muxa_val, muxb_val)
+        elif alu_op == 2: # SSUB
+            self.alu.ssub(muxa_val, muxb_val)
+        elif alu_op == 3: # SLL
+            self.alu.sll(muxa_val, muxb_val)
+        elif alu_op == 4: # SRL
+            self.alu.srl(muxa_val, muxb_val)
+        elif alu_op == 5: # LAND
+            self.alu.land(muxa_val, muxb_val)
+        elif alu_op == 6: # LOR
+            self.alu.lor(muxa_val, muxb_val)
+        elif alu_op == 7: # LXOR
+            self.alu.lxor(muxa_val, muxb_val)
+        else:
+            raise Exception(self.__class__.__name__ + ": ALU op not recognized")
+
+        
+    def run(self, pc, vwr2a, col):
+        # This MXCU instruction
         mxcu_hex = self.imem.get_word_in_hex(pc)
-        print(self.__class__.__name__ + ": " + mxcu_asm + ", " + mxcu_hex + ", " + selected_vwr + ", " + write_srf + " SRF(" + str(srf_sel) + ") from " + str(alu_srf_write))
-        return selected_vwr, srf_sel, alu_srf_write, srf_we
+        one_hot_vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel = MXCU_IMEM_WORD(hex_word=mxcu_hex).decode_word()
+        # Get muxes value
+        muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel)
+        muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel)
+        # ALU op
+        self.runAlu(alu_op, muxa_val, muxb_val)
+        # SRF store control
+        if alu_srf_write == 0: # LCU
+            srf_data = vwr2a.lcus[col].alu.newRes
+        elif alu_srf_write == 1: # RC0
+            srf_data = vwr2a.rcs[col][0].alu.newRes
+        elif alu_srf_write == 2: # MXCU
+            srf_data = vwr2a.mscus[col].alu.newRes
+        else: # LSU
+            srf_data = vwr2a.lsus[col].alu.newRes
+        if srf_we == 1:
+            vwr2a.srfs[col].regs[srf_sel] = srf_data
+        # VWR store control
+        vwr_dest = vwr2a.vwrs[col][vwr_sel]
+        mxcu_r0 = vwr2a.mxcus[col].regs[0] # VWR_IDX
+        mxcu_mask = vwr2a.mxcus[col].regs[5+vwr_sel] # R5, 6 or 7 for VWR_A, B or C
+        slice_idx = mxcu_r0 & mxcu_mask
+        slice_size = int(SPM_NWORDS/CGRA_ROWS)
+        for row in range(CGRA_ROWS):
+            if one_hot_vwr_row_we[row] == 1:
+                vwr_idx = slice_idx + slice_size*row
+                vwr_dest.values[vwr_idx] = vwr2a.rcs[col][row].alu.newRes
+
+        # Write result locally
+        if rf_we == 1:
+            self.regs[rf_wsel] = self.alu.newRes
+        
+        # ---------- Print something -----------
+        mxcu_asm, vwr_sel, srf_sel, alu_srf_write, srf_we = self.imem.get_instruction_asm(pc)
+        if srf_we == 0:
+            write_srf = "not writting SRF"
+        else:
+            for op in ALU_SRF_WRITE:
+                if op.value == alu_srf_write:
+                    dest = op.name
+            write_srf = "writting SRF(" + str(srf_sel) + ") from " + dest
+        print(self.__class__.__name__ + ": " + mxcu_asm + " (selected: " + vwr_sel + ", " + write_srf + ")")
 
     # def sadd( val1, val2 ):
     #     return c_int32( val1 + val2 ).value

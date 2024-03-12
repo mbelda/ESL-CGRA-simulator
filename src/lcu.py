@@ -6,7 +6,7 @@ import numpy as np
 from enum import Enum
 from ctypes import c_int32
 import re
-
+from .alu import *
 from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
@@ -285,69 +285,123 @@ class LCU:
         self.nInstr     = 0
         self.default_word = LCU_IMEM_WORD().get_word()
         self.iregs = [self.default_word in range(LCU_NUM_CREG)]
+        self.alu = ALU()
+        self.exit = 0
+        self.branch = 0
+        self.branch_pc = 0
+
+    def getMuxValue(self, mux, vwr2a, col, srf_sel, imm, muxA, bgepd):
+        if mux <= 3 : # Rx
+            if bgepd and muxA:
+                self.regs[mux] -= 1
+            else:
+                muxValue = self.regs[mux]
+        elif mux == 4: # SRF
+            if bgepd and muxA:
+                vwr2a.srfs[col].regs[srf_sel] -= 1
+            else:
+                muxValue = vwr2a.srfs[col].regs[srf_sel]
+        elif mux == 5: # LAST
+            if bgepd and muxA:
+                muxValue = SPM_NWORDS/CGRA_ROWS -2 # 128/4 -2 = 32 -2 = 30
+            else:
+                muxValue = SPM_NWORDS/CGRA_ROWS -1 # 128/4 -1 = 31 (last index)
+        elif mux == 6: # ZERO
+            if bgepd and muxA:
+                muxValue = -1
+            else:
+                muxValue = 0
+        elif mux == 7: # IMM or ONE
+            if muxA:
+                if bgepd:
+                    muxValue = imm -1
+                else:  
+                    muxValue = imm
+            else:
+                muxValue = 1
+        else:
+            raise Exception(self.__class__.__name__ + ": Mux value not recognized")
+        return muxValue
     
+    def runAlu(self, alu_op, muxa_val, muxb_val, imm, br_mode, vwr2a, col):
+        if alu_op == 0: # NOP
+            self.alu.nop()
+        elif alu_op == 1: # SADD
+            self.alu.sadd(muxa_val, muxb_val)
+        elif alu_op == 2: # SSUB
+            self.alu.ssub(muxa_val, muxb_val)
+        elif alu_op == 3: # SLL
+            self.alu.sll(muxa_val, muxb_val)
+        elif alu_op == 4: # SRL
+            self.alu.srl(muxa_val, muxb_val)
+        elif alu_op == 5: # SRA
+            self.alu.sra(muxa_val, muxb_val)
+        elif alu_op == 6: # LAND
+            self.alu.land(muxa_val, muxb_val)
+        elif alu_op == 7: # LOR
+            self.alu.lor(muxa_val, muxb_val)
+        elif alu_op == 8: # LXOR
+            self.alu.lxor(muxa_val, muxb_val)
+        elif alu_op >= 9 and alu_op <= 12: # Conditional branches
+            if br_mode == 0:
+                self.alu.ssub(muxa_val, muxb_val)
+                equal = 0
+                greater = 0
+                if self.alu.newRes == 0:
+                    equal = 1
+                if self.alu.newRes > 0: 
+                    greater = 1 
+            else: # Get the flags from the rcs # TODO: check that this is true
+                equal = 0
+                greater = 0
+                for row in range(CGRA_ROWS):
+                    if vwr2a.rcs[col][row].alu.newRes == 0:
+                        equal = 1
+                    if vwr2a.rcs[col][row].alu.newRes > 0: 
+                        greater = 1 
+            if alu_op == 9 and equal: # BEQ
+                self.branch = 1
+                self.branch_pc = imm
+            if alu_op == 10 and not equal: # BNE
+                self.branch = 1
+                self.branch_pc = imm
+            if alu_op == 11 and (greater or equal): # BGEPD
+                self.branch = 1
+                self.branch_pc = imm
+            if alu_op == 12 and not (greater or equal): # BLT
+                self.branch = 1
+                self.branch_pc = imm
+        elif alu_op == 13: # JUMP
+            self.branch = 1
+            self.branch_pc = muxb_val + muxa_val
+        elif alu_op == 14: # EXIT
+            self.exit = 1
+        else:
+            raise Exception(self.__class__.__name__ + ": ALU op not recognized")
+
     def run(self, pc, vwr2a, col):
+        # MXCU info
         _, _, srf_sel, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel))
-        return -1,-1
+        # This LCU instruction
+        lcu_hex = self.imem.get_word_in_hex(pc)
+        imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = LCU_IMEM_WORD(hex_word=lcu_hex).decode_word()
+        # Get muxes value
+        bgepd = False # Especial case BGEPD
+        if alu_op == 11:
+            bgepd = True
+        muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel, imm, True, bgepd)
+        muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel, imm, False, bgepd)
+        # ALU op
+        self.runAlu(alu_op, muxa_val, muxb_val, imm, br_mode, vwr2a, col)
+
+        # Write result locally
+        if rf_we == 1:
+            self.regs[rf_wsel] = self.alu.newRes
+        
+        # ---------- Print something -----------
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel) + " --> " + str(self.alu.newRes))
+
     
-    # def sadd( val1, val2 ):
-    #     return c_int32( val1 + val2 ).value
-
-    # def ssub( val1, val2 ):
-    #     return c_int32( val1 - val2 ).value
-
-    # def sll( val1, val2 ):
-    #     return c_int32(val1 << val2).value
-
-    # def srl( val1, val2 ):
-    #     interm_result = (c_int32(val1).value & MAX_32b)
-    #     return c_int32(interm_result >> val2).value
-
-    # def sra( val1, val2 ):
-    #     return c_int32(val1 >> val2).value
-
-    # def lor( val1, val2 ):
-    #     return c_int32( val1 | val2).value
-
-    # def land( val1, val2 ):
-    #     return c_int32( val1 & val2).value
-
-    # def lxor( val1, val2 ):
-    #     return c_int32( val1 ^ val2).value
-
-    # def beq( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
-
-    # def bne( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
-
-    # def bgepd( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
-
-    # def blt( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
-
-    # def beqr( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 == val2 else self.flags['branch']
-
-    # def bner( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 != val2 else self.flags['branch']
-
-    # def bger( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 >= val2 else self.flags['branch']
-
-    # def bltr( self,  val1, val2, branch ):
-    #     self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
-
-    # def nop(self):
-    #     pass # Intentional
-
-    # def exit(self):
-    #     pass
-
-    # def jump(self, imm):
-    #     pass
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
@@ -467,7 +521,8 @@ class LCU:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". Expected 3 operands.")
             dest, srf_str_index = self.parseDestArith(rd, instr)
             muxB, srf_muxB_index = self.parseMuxBArith(rs, instr) # Change order so that always the ONE value can be written in the first operand in the assembly
-            muxA, srf_read_index = self.parseMuxAArith(rt, instr)
+            muxA, srf_muxA_index = self.parseMuxAArith(rt, instr)
+            srf_read_index = srf_muxA_index
 
             if srf_read_index > SRF_N_REGS or srf_muxB_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
                 raise ValueError("Instruction not valid for LCU: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
@@ -498,9 +553,10 @@ class LCU:
                 rf_we = 0
             imm = 0
 
-            # Add hexadecimal instruction
-            # self.imem.set_params(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            # self.nInstr+=1
+            # Check special case BGEPD
+            if alu_op == "BGEPD":
+                srf_str_index = srf_muxA_index
+
             # Return read and write srf indexes and the hex translation
             word = LCU_IMEM_WORD(imm=imm, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, br_mode=br_mode, muxb_sel=muxB, muxa_sel=muxA)
             return srf_read_index, srf_str_index, word

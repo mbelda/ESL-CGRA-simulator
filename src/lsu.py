@@ -6,7 +6,7 @@ import numpy as np
 from enum import Enum
 from ctypes import c_int32
 import re
-
+from .alu import *
 from .srf import SRF_N_REGS
 
 # Local data register (DREG) sizes of specialized slots
@@ -236,14 +236,15 @@ class LSU_IMEM_WORD:
                 if op.value == rf_wsel:
                     dest = op.name
         else:
-            # I don't know if it wants to write on SRF or just don't write.
-            # Needs to be checked with the MXCU
-            if srf_we == 1 and alu_srf_write == 3:
+            if srf_we == 1 and alu_srf_write == 3: # Write on the SRF
                 dest = "SRF(" + str(srf_sel) + ")"
             else:
                 dest = "_"
         
-        alu_asm = alu_op + " " + dest + ", " + muxa_asm + ", " + muxb_asm
+        if dest == "_":
+            alu_asm = "NOP"
+        else:
+            alu_asm = alu_op + " " + dest + ", " + muxa_asm + ", " + muxb_asm
 
         # MEM part
         for op in LSU_MEM_OP:
@@ -309,7 +310,7 @@ class LSU_IMEM_WORD:
 class LSU:
     lsu_arith_ops   = { 'SADD','SSUB','SLL','SRL','LAND','LOR','LXOR', 'BITREV' }
     lsu_nop_ops     = { 'NOP' }
-    lsu_mem_ops     = { 'LD.VWR','ST.VWR' }
+    lsu_mem_ops     = { 'LD.VWR','STR.VWR' }
     lsu_shuf_ops    = { 'SH.IL.UP','SH.IL.LO','SH.EVEN','SH.ODD','SH.BRE.UP','SH.BRE.LO','SH.CSHIFT.UP','SH.CSHIFT.LO' }
 
     def __init__(self):
@@ -317,32 +318,8 @@ class LSU:
         self.imem       = LSU_IMEM()
         self.nInstr     = 0
         self.default_word = LSU_IMEM_WORD().get_word()
+        self.alu = ALU()
     
-    # def sadd( val1, val2 ):
-    #     return c_int32( val1 + val2 ).value
-
-    # def ssub( val1, val2 ):
-    #     return c_int32( val1 - val2 ).value
-
-    # def sll( val1, val2 ):
-    #     return c_int32(val1 << val2).value
-
-    # def srl( val1, val2 ):
-    #     interm_result = (c_int32(val1).value & MAX_32b)
-    #     return c_int32(interm_result >> val2).value
-
-    # def lor( val1, val2 ):
-    #     return c_int32( val1 | val2).value
-
-    # def land( val1, val2 ):
-    #     return c_int32( val1 & val2).value
-
-    # def lxor( val1, val2 ):
-    #     return c_int32( val1 ^ val2).value
-
-    # def nop(self):
-    #     pass # Intentional
-
     # def load_vwr(self):
     #     pass
 
@@ -372,16 +349,129 @@ class LSU:
 
     # def shcshiftlo(self):
     #     pass
+    
+    def getMuxValue(self, mux, vwr2a, col, srf_sel):
+        if mux <= 7 : # Rx
+            muxValue = self.regs[mux]
+        elif mux == 8: # SRF
+            muxValue = vwr2a.srfs[col].regs[srf_sel]
+        elif mux == 9: # ZERO
+            muxValue = 0
+        elif mux == 10: # ONE
+            muxValue = 1
+        elif mux == 11: # TWO
+            muxValue = 2
+        else:
+            raise Exception(self.__class__.__name__ + ": Mux value not recognized")
+        return muxValue
+    
+    def runAlu(self, alu_op, muxa_val, muxb_val):
+        if alu_op == 0: # LAND
+            self.alu.land(muxa_val, muxb_val)
+        elif alu_op == 1: # LOR
+            self.alu.lor(muxa_val, muxb_val)
+        elif alu_op == 2: # LXOR
+            self.alu.lxor(muxa_val, muxb_val)
+        elif alu_op == 3: # SADD
+            self.alu.sadd(muxa_val, muxb_val)
+        elif alu_op == 4: # SSUB
+            self.alu.ssub(muxa_val, muxb_val)
+        elif alu_op == 5: # SLL
+            self.alu.sll(muxa_val, muxb_val)
+        elif alu_op == 6: # SRL
+            self.alu.srl(muxa_val, muxb_val)
+        elif alu_op == 7: # BITREV
+            self.alu.bitrev(muxa_val, muxb_val)
+        else:
+            raise Exception(self.__class__.__name__ + ": ALU op not recognized")
+
+    def bitReversalShuffle(self, a_array, b_array):
+        bit_reversal_order = [0, 64, 32, 96, 16, 80, 48, 112, 8, 72, 40, 104, 24, 88, 56, 120, 4, 68, 36, 100, 20, 84, 52, 116, 12, 76, 44, 108, 28, 92, 60, 124, 2, 66, 34, 98, 18, 82, 50, 114, 10, 74, 42, 106, 26, 90, 58, 122, 6, 70, 38, 102, 22, 86, 54, 118, 14, 78, 46, 110, 30, 94, 62, 126, 1, 65, 33, 97, 17, 81, 49, 113, 9, 73, 41, 105, 25, 89, 57, 121, 5, 69, 37, 101, 21, 85, 53, 117, 13, 77, 45, 109, 29, 93, 61, 125, 3, 67, 35, 99, 19, 83, 51, 115, 11, 75, 43, 107, 27, 91, 59, 123, 7, 71, 39, 103, 23, 87, 55, 119, 15, 79, 47, 111, 31, 95, 63, 127]
+        res = []
+        for idx in bit_reversal_order:
+            res.append(a_array[idx])
+            res.append(b_array[idx])
+        return res
+
+    def interleavedShuffle(self, a_array, b_array):
+        res = []
+        for idx in range(N_ELEMS_PER_VWR):
+            res.append(a_array[idx])
+            res.append(b_array[idx])
+        return res
+    
+    def runMem(self, mem_op, vwr_sel_shuf_op, vwr2a, col):
+        if mem_op == 0: # NOP
+            pass # Intentional
+        elif mem_op == 1: # LOAD
+            if vwr_sel_shuf_op < 3: # VWR_A, B or C
+                vwr2a.vwrs[col][vwr_sel_shuf_op].values = vwr2a.spm.getLine(self.regs[7])
+            else: # SRF
+                # Only copy the first SRF_N_REGS elements
+                for i in range(SRF_N_REGS):
+                    spm_line = vwr2a.spm.getLine(self.regs[7])
+                    vwr2a.srfs[col].regs[i] = spm_line[i]
+        elif mem_op == 2: # STORE
+            if vwr_sel_shuf_op < 3: # VWR_A, B or C
+                vwr2a.spm.setLine(self.regs[7], vwr2a.vwrs[col][vwr_sel_shuf_op].values)
+            else: # SRF
+                # Only copy the first SRF_N_REGS elements
+                spm_line = [0 for _ in range(SPM_NWORDS)]
+                for i in range(SRF_N_REGS):
+                    spm_line[i] = vwr2a.srfs[col].regs[i]
+                vwr2a.spm.setLine(self.regs[7], spm_line)
+        elif mem_op == 3: # SHUFFLE
+            a_array = vwr2a.vwrs[col][0].values
+            b_array = vwr2a.vwrs[col][1].values
+            interleaved = [val for pair in zip(a_array, b_array) for val in pair]
+            evens = a_array[::2] + b_array[::2]
+            odds = a_array[1::2] + b_array[1::2]
+            brev = self.bitReversalShuffle(a_array, b_array)
+            cshift = a_array[1:] + b_array
+            cshift.append(a_array[0])
+            if vwr_sel_shuf_op == 0: 
+                vwr2a.vwrs[col][2].values = interleaved[0:SPM_NWORDS-1]
+            elif vwr_sel_shuf_op == 1:
+                vwr2a.vwrs[col][2].values = interleaved[SPM_NWORDS:]
+            elif vwr_sel_shuf_op == 2:
+                vwr2a.vwrs[col][2].values = evens
+            elif vwr_sel_shuf_op == 3:
+                vwr2a.vwrs[col][2].values = odds
+            elif vwr_sel_shuf_op == 4:
+                vwr2a.vwrs[col][2].values = brev[0:SPM_NWORDS-1]
+            elif vwr_sel_shuf_op == 5:
+                vwr2a.vwrs[col][2].values = brev[SPM_NWORDS:]
+            elif vwr_sel_shuf_op == 6:
+                vwr2a.vwrs[col][2].values = cshift[0:SPM_NWORDS-1]
+            elif vwr_sel_shuf_op == 7:
+                vwr2a.vwrs[col][2].values = cshift[SPM_NWORDS:]
+        else:
+            raise Exception(self.__class__.__name__ + ": MEM op not recognized")
 
     def run(self, pc, vwr2a, col):
+        # MXCU info
         _, _, srf_sel, alu_srf_write, srf_we = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, alu_srf_write, srf_we))
+        # This LSU instruction
+        lsu_hex = self.imem.get_word_in_hex(pc)
+        rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = LSU_IMEM_WORD(hex_word=lsu_hex).decode_word()
+        # Get muxes value
+        muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel)
+        muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel)
+        # ALU op
+        self.runAlu(alu_op, muxa_val, muxb_val)
+        # Write result locally
+        if rf_we == 1:
+            self.regs[rf_wsel] = self.alu.newRes
+        # MEM op
+        self.runMem(mem_op, vwr_sel_shuf_op, vwr2a, col)
+        
+        # ---------- Print something -----------
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, alu_srf_write, srf_we) + " --> " + str(self.alu.newRes))
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')
         srf_pattern = re.compile(r'^SRF\((\d+)\)$')
-        undscr_pattern = re.compile(r'^_$')
 
         # Check if the input matches the 'R' pattern
         r_match = r_pattern.match(rd)
@@ -397,11 +487,6 @@ class LSU:
         srf_match = srf_pattern.match(rd)
         if srf_match:
             return LSU_DEST_REGS["SRF"], int(srf_match.group(1))
-        
-        # Check if the input matches the '_' pattern
-        undscr_match = undscr_pattern.match(rd)
-        if undscr_match:
-            return -1, -1
 
         return None, -1
 
@@ -500,8 +585,8 @@ class LSU:
             except:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected 3 operands.")
             dest, srf_str_index = self.parseDestArith(rd, instr)
-            muxA, srf_muxA_index = self.parseMuxArith(rs, instr)
-            muxB, srf_read_index = self.parseMuxArith(rt, instr)
+            muxa_sel, srf_muxA_index = self.parseMuxArith(rs, instr)
+            muxb_sel, srf_read_index = self.parseMuxArith(rt, instr)
 
             if srf_read_index > SRF_N_REGS or srf_muxA_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
@@ -509,10 +594,10 @@ class LSU:
             if dest == None:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected another format for first operand (dest).")
             
-            if muxB == None:
+            if muxb_sel == None:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected another format for the second operand (muxB).")
 
-            if muxA == None:
+            if muxa_sel == None:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected another format for the third operand (muxA).")
             
             if srf_muxA_index != -1:
@@ -529,6 +614,12 @@ class LSU:
             else: # Don't write
                 rf_wsel = 0
                 rf_we = 0
+        elif op in self.lsu_nop_ops:
+            # Get the real default word that do not write
+            rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, _, _ = LSU_IMEM_WORD().decode_word()
+            srf_read_index = -1
+            srf_str_index = -1
+            assert(rf_we == 0), " LSU: Error, writting when NOP"
         else:
             raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Arithmetic operation not recognised.")
         
@@ -584,7 +675,7 @@ class LSU:
         #self.imem.set_params(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
         #self.nInstr+=1
         # Return read and write srf indexes
-        word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
+        word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         return srf_read_index, srf_str_index, word
 
     def hexToAsm(self, instr, srf_sel, alu_srf_write, srf_we):
