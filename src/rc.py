@@ -92,11 +92,11 @@ class RC_IMEM:
         imem_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_asm(self, pos, srf_sel, selected_vwr, vwr_re):
+    def get_instruction_asm(self, pos, srf_sel, selected_vwr, vwr_re, srf_we, srf_wd, row):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = RC_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm(srf_sel, selected_vwr, vwr_re)   
+        return imem_word.get_word_in_asm(srf_sel, selected_vwr, vwr_re, srf_we, srf_wd, row)   
     
     def get_instr_pseudo_asm(self, pos):
         imem_word = RC_IMEM_WORD()
@@ -196,7 +196,7 @@ class RC_IMEM_WORD:
         '''Get the hexadecimal representation of the word at index pos in the RC config IMEM'''
         return(hex(int(self.word, 2)))
     
-    def get_word_in_asm(self, srf_sel, selected_vwr, vwr_re):
+    def get_word_in_asm(self, srf_sel, selected_vwr, vwr_re, srf_we, srf_wd, row):
         rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = self.decode_word()
         
         # Half-precision
@@ -205,7 +205,7 @@ class RC_IMEM_WORD:
         else:
             precision = ".H"
 
-        # Input/dest muxes
+        # Input muxes
         if muxa_sel > 13: # Duplicated
             muxa_sel = 10 # ZERO
         for sel in RC_MUX_SEL:
@@ -222,6 +222,8 @@ class RC_IMEM_WORD:
         if muxb_asm == "SRF":
             muxb_asm = "SRF(" + str(srf_sel) + ")"
         
+        # Destination
+        dest = ""
         if vwr_re == 1:
             if selected_vwr == 0:
                 vwr_name = 'A'
@@ -229,14 +231,23 @@ class RC_IMEM_WORD:
                 vwr_name = 'B'
             else:
                 vwr_name = 'C'
-            dest = "VWR_" + vwr_name
-        elif rf_we == 1:
+            dest += "VWR_" + vwr_name
+        
+        if rf_we == 1:
             for sel in RC_DEST_REGS:
                 if sel.value == rf_wsel:
-                    dest = sel.name
-        else:
-            dest = "SRF(" + str(srf_sel) + ")"
-
+                    if dest != "":
+                        dest += ", "
+                    dest += sel.name
+        
+        if srf_we == 1 and srf_wd == 1 and row == 0: 
+            if dest != "":
+                dest += ", "
+            dest += "SRF(" + str(srf_sel) + ")"
+        
+        if dest != "":
+            dest += ", "
+        dest += "ROUT"
 
         # ALU ops
         if alu_op == 15: # Duplicated
@@ -268,7 +279,7 @@ class RC_IMEM_WORD:
         return rc_asm
     
     def get_word_pseudo_asm(self):
-        asm = self.get_word_in_asm(0,0,0)
+        asm = self.get_word_in_asm(0,0,0,0,0,0)
         # Replace SRF number
         asm = re.sub(r'SRF\(\d+\)', 'SRF(X)', asm)
         # Replace VWR letter
@@ -404,10 +415,9 @@ class RC:
         else:
             raise Exception(self.__class__.__name__ + ": ALU op not recognized")
                 
-        
     def run(self, pc, vwr2a, col, row):
         # MXCU info
-        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we= vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
         # This RC instruction
         rc_hex = self.imem.get_word_in_hex(pc)
         rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = RC_IMEM_WORD(hex_word=rc_hex).decode_word()
@@ -421,7 +431,8 @@ class RC:
             self.regs[rf_wsel] = self.alu.newRes
 
         # ---------- Print something -----------
-        rc_asm = self.imem.get_instruction_asm(pc, srf_sel, selected_vwr, vwr_row_we[row])
+        vwr_re = vwr_row_we[CGRA_ROWS -1 -row] # The opposite way around because its like a binary number where the last one is the least significant so RC0
+        rc_asm = self.imem.get_instruction_asm(pc, srf_sel, selected_vwr, vwr_re, srf_we, alu_srf_write, row)
         print(self.__class__.__name__ + ": " + rc_asm + " --> " + str(self.alu.newRes))
         
     def parseDestArith(self, rd, instr):
@@ -612,14 +623,7 @@ class RC:
                 if srf_read_index != -1 and srf_muxB_index != srf_read_index:
                     raise Exception("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.") 
                 srf_read_index = srf_muxB_index
-
-            for x in srf_strs_idx:
-                if x != -1:
-                    if srf_read_index == -1: 
-                        srf_read_index = x
-                    elif x != srf_read_index:
-                        raise Exception("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
-                    
+       
             # Check if writes to local regs
             rf_wsel = 0
             rf_we = 0
@@ -710,7 +714,7 @@ class RC:
             rf_we = 0
             last = -1
             for dest in dests:
-                if dest <= 1:
+                if dest < RC_NUM_DREG:
                     if last != -1 and last != dest:
                         raise Exception("Instruction not valid for RC: " + instr + ". Expected writes to more than one local register.")
                     last = dest
@@ -723,5 +727,5 @@ class RC:
         
         raise Exception("Instruction not valid for RC: " + instr + ". Operation not recognised.")
 
-    def hexToAsm(self, instr, srf_sel, selected_vwr, vwr_we):
-        return RC_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, selected_vwr, vwr_we)
+    def hexToAsm(self, instr, srf_sel, selected_vwr, vwr_we, srf_we, srf_wd, row):
+        return RC_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, selected_vwr, vwr_we, srf_we, srf_wd, row)

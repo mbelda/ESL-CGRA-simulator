@@ -227,6 +227,8 @@ class LSU_IMEM_WORD:
         for op in LSU_ALU_OPS:
             if op.value == alu_op:
                 alu_op = op.name
+
+        # Muxes
         if muxa_sel > 11:
             muxa_sel = 9 # ZERO
         for sel in LSU_MUX_SEL:
@@ -243,17 +245,22 @@ class LSU_IMEM_WORD:
         if muxb_asm == "SRF":
             muxb_asm = "SRF(" + str(srf_sel) + ")"
         
+        # Dest
+        dest = ""
         if rf_we == 1:
-            for op in LSU_DEST_REGS:
-                if op.value == rf_wsel:
-                    dest = op.name
-        else:
-            if srf_we == 1 and alu_srf_write == 3: # Write on the SRF
-                dest = "SRF(" + str(srf_sel) + ")"
-            else:
-                dest = "_"
+            for sel in LSU_DEST_REGS:
+                if sel.value == rf_wsel:
+                    if dest != "":
+                        dest += ", "
+                    dest += sel.name
         
-        if dest == "_":
+        
+        if srf_we == 1 and alu_srf_write == 3: 
+            if dest != "":
+                dest += ", "
+            dest += "SRF(" + str(srf_sel) + ")"
+
+        if dest == "":
             alu_asm = "NOP"
         else:
             alu_asm = alu_op + " " + dest + ", " + muxa_asm + ", " + muxb_asm
@@ -438,7 +445,7 @@ class LSU:
 
     def run(self, pc, vwr2a, col):
         # MXCU info
-        _, _, srf_sel, alu_srf_write, srf_we, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
         # This LSU instruction
         lsu_hex = self.imem.get_word_in_hex(pc)
         rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = LSU_IMEM_WORD(hex_word=lsu_hex).decode_word()
@@ -565,23 +572,38 @@ class LSU:
 
         if op in self.lsu_arith_ops:
             alu_op = LSU_ALU_OPS[op]
-            # Expect 3 operands: rd/srf, rs/srf/zero/one, rt/srf/zero/one
-            try:
-                rd = arith_instr[1]
-                rs = arith_instr[2]
-                rt = arith_instr[3]
-            except:
-                raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected 3 operands.")
-            dest, srf_str_index = self.parseDestArith(rd, instr)
+            # Expect 3 or more operands
+            assert(len(arith_instr) >= 4), "Instruction not valid for LSU: " + instr + ". Expected at least 3 operands."
+
+            # Control more than one destination
+            rds = []
+            for i in range(1, len(arith_instr) - 2):
+                rds.append(arith_instr[i])
+            rs = arith_instr[len(arith_instr) - 2]
+            rt = arith_instr[len(arith_instr) - 1]
+
+            dests = []
+            srf_strs_idx = []
+            for i in range(len(rds)):
+                dest, aux_srf = self.parseDestArith(rds[i], instr)
+                dests.append(dest)
+                srf_strs_idx.append(aux_srf)
             muxa_sel, srf_muxA_index = self.parseMuxArith(rs, instr)
             muxb_sel, srf_read_index = self.parseMuxArith(rt, instr)
 
-            if srf_read_index > SRF_N_REGS or srf_muxA_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
+            if srf_read_index > SRF_N_REGS or srf_muxA_index > SRF_N_REGS or any(x >= SRF_N_REGS for x in srf_strs_idx):
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
 
-            if dest == None:
+            if any(x == None for x in dests):
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected another format for first operand (dest).")
             
+            srf_str_index = -1
+            for x in srf_strs_idx:
+                if x != -1 and srf_str_index != -1:
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one writes to the SRF.")
+                elif x != -1:
+                    srf_str_index = x
+
             if muxb_sel == None:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected another format for the second operand (muxB).")
 
@@ -596,12 +618,18 @@ class LSU:
             if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
                 raise ValueError("Instruction not valid for LSU: " + instructions[0] + ". Expected only reads/writes to the same reg of the SRF.")
 
-            if srf_str_index == -1 and dest != -1: # Writting on a local reg
-                rf_we = 1
-                rf_wsel = dest
-            else: # Don't write
-                rf_wsel = 0
-                rf_we = 0
+            # Check if writes to local regs
+            rf_wsel = 0
+            rf_we = 0
+            last = -1
+            for dest in dests:
+                if dest < LSU_NUM_DREG:
+                    if last != -1 and last != dest:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Expected writes to more than one local register.")
+                    last = dest
+                    rf_we = 1
+                    rf_wsel = dest
+
         elif op in self.lsu_nop_ops:
             # Get the real default word that do not write
             rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, _, _ = LSU_IMEM_WORD().decode_word()
@@ -659,9 +687,6 @@ class LSU:
         else:
             raise ValueError("Instruction not valid for LSU: " + instructions[1] + ". Memory operation not recognised.")    
 
-        # Add hexadecimal instruction
-        #self.imem.set_params(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-        #self.nInstr+=1
         # Return read and write srf indexes
         word = LSU_IMEM_WORD(mem_op=mem_op, vwr_sel_shuf_op=vwr_sel_shuf_op, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         return srf_read_index, srf_str_index, word

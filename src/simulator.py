@@ -61,8 +61,25 @@ class SIMULATOR:
 
             # Create a CSV reader object
             csv_reader = csv.reader(file)
-            # Skip the header (first row)
-            next(csv_reader, None)
+            
+            # Process the header
+            lcu_idx = 0
+            lsu_idx = 0
+            mxcu_idx = 0
+            rcs_idx=[0 for _ in range(CGRA_ROWS)]
+            header = next(csv_reader, None)
+            for i in range(len(header)):
+                if header[i] == "LCU":
+                    lcu_idx = i
+                elif header[i] == "LSU":
+                    lsu_idx = i
+                elif header[i] == "MXCU":
+                    mxcu_idx = i
+                else:
+                    for rc in range(CGRA_ROWS):
+                        if header[i] == ("RC" + str(rc)):
+                            rcs_idx[rc] = i
+
 
             # For each used column read the number of instructions
             instr_cont = imem_start_addr
@@ -71,17 +88,18 @@ class SIMULATOR:
                 while instr_cont_per_col < n_instr_per_col:
                     try:
                         row = next(csv_reader, None)
-                        self.vwr2a.imem.lcu_imem[instr_cont] = LCU_IMEM_WORD(hex_word=row[0])
-                        self.vwr2a.imem.lsu_imem[instr_cont] = LSU_IMEM_WORD(hex_word=row[1])
-                        self.vwr2a.imem.mxcu_imem[instr_cont] = MXCU_IMEM_WORD(hex_word=row[2])
-                    
-                        index = 3
-                        for rc in range(CGRA_ROWS):
-                            self.vwr2a.imem.rcs_imem[rc][instr_cont] = RC_IMEM_WORD(hex_word=row[index])
-                            index+=1
                     except:
                         nUsedCols = end_col - ini_col + 1
-                        raise Exception("CSV instruction structure is not appropiate. Expected: LCU_instr, LSU_instr, MXCU_instr, RC0_instr, ..., RC" + str(CGRA_ROWS -1) + "_instr. It should have " + str(nUsedCols*n_instr_per_col) + " rows plus the header.")
+                        raise Exception("CSV instruction structure is not appropiate. It should have " + str(nUsedCols*n_instr_per_col) + " rows plus the header.")
+                    self.vwr2a.imem.lcu_imem[instr_cont] = LCU_IMEM_WORD(hex_word=row[lcu_idx])
+                    self.vwr2a.imem.lsu_imem[instr_cont] = LSU_IMEM_WORD(hex_word=row[lsu_idx])
+                    self.vwr2a.imem.mxcu_imem[instr_cont] = MXCU_IMEM_WORD(hex_word=row[mxcu_idx])
+                
+                    index = 3
+                    for rc in range(CGRA_ROWS):
+                        self.vwr2a.imem.rcs_imem[rc][instr_cont] = RC_IMEM_WORD(hex_word=row[rcs_idx[rc]])
+                        index+=1
+                    
                     instr_cont+=1
                     instr_cont_per_col+=1
     
@@ -102,7 +120,10 @@ class SIMULATOR:
         addr = imem_start_addr
         for col in range(ini_col, end_col+1):
             pos = 0
+            print("LCU")
             for j in range(n_instr_per_col):
+                # Debug
+                print(self.vwr2a.imem.lcu_imem[addr].get_word_in_hex())
                 self.vwr2a.lcus[col].imem.set_word(int(self.vwr2a.imem.lcu_imem[addr].get_word(),2), pos)
                 self.vwr2a.lsus[col].imem.set_word(int(self.vwr2a.imem.lsu_imem[addr].get_word(),2), pos)
                 self.vwr2a.mxcus[col].imem.set_word(int(self.vwr2a.imem.mxcu_imem[addr].get_word(),2), pos)
@@ -110,7 +131,7 @@ class SIMULATOR:
                     self.vwr2a.rcs[col][rc].imem.set_word(int(self.vwr2a.imem.rcs_imem[rc][addr].get_word(),2), pos)
                 pos+=1
                 addr+=1
-
+        
 
         # Execute each instruction cycle by cycle        
         pc = 0 # The pc is the same for both columns because is the same kernel
@@ -179,8 +200,24 @@ class SIMULATOR:
 
             # Create a CSV reader object
             csv_reader = csv.reader(file)
-            # Skip the header (first row)
-            next(csv_reader, None)
+            
+            # Process the header
+            lcu_idx = 0
+            lsu_idx = 0
+            mxcu_idx = 0
+            rcs_idx=[0 for _ in range(CGRA_ROWS)]
+            header = next(csv_reader, None)
+            for i in range(len(header)):
+                if header[i] == "LCU":
+                    lcu_idx = i
+                elif header[i] == "LSU":
+                    lsu_idx = i
+                elif header[i] == "MXCU":
+                    mxcu_idx = i
+                else:
+                    for rc in range(CGRA_ROWS):
+                        if header[i] == ("RC" + str(rc)):
+                            rcs_idx[rc] = i
 
             # For each used column read the number of instructions
             for col in range(ini_col, end_col+1):
@@ -188,13 +225,13 @@ class SIMULATOR:
                 while instr_cont < n_instr_per_col:
                     try:
                         row = next(csv_reader, None)
-                        LCU_instr[col].append(row[0])
-                        LSU_instr[col].append(row[1])
-                        MXCU_instr[col].append(row[2])
+                        LCU_instr[col].append(row[lcu_idx])
+                        LSU_instr[col].append(row[lsu_idx])
+                        MXCU_instr[col].append(row[mxcu_idx])
                     
                         index = 3
                         for rc in range(CGRA_ROWS):
-                            RCs_instr[col][rc].append(row[index])
+                            RCs_instr[col][rc].append(row[rcs_idx[rc]])
                             index+=1
                     except:
                         raise Exception("CSV instruction structure is not appropiate. Expected: LCU_instr, LSU_instr, MXCU_instr, RC0_instr, ..., RC" + str(CGRA_ROWS -1) + "_instr. It should have " + str(nUsedCols*nInstrPerCol) + " rows plus the header.")
@@ -254,8 +291,8 @@ class SIMULATOR:
                 imem_addr+=1
         
         # Write instructions to bitstream
-        self.create_header_file(kernel_path + "test")
-        self.create_hex_csv_file(kernel_path + "test", version)
+        self.create_header_file(kernel_path)
+        self.create_hex_csv_file(kernel_path, version + "_test")
 
     def create_hex_csv_file(self, kernel_path, version):
         file_name = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
@@ -390,12 +427,13 @@ class SIMULATOR:
             mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = mxcu.hexToAsmPlus(MXCU_instr_hex[i])
             MXCU_instr_asm.append(mxcu_asm)
             # For LCU
-            LCU_instr_asm.append(lcu.hexToAsm(LCU_instr_hex[i], srf_sel))
+            LCU_instr_asm.append(lcu.hexToAsm(LCU_instr_hex[i], srf_sel, srf_we, alu_srf_write))
             # For LSU
             LSU_instr_asm.append(lsu.hexToAsm(LSU_instr_hex[i], srf_sel, alu_srf_write, srf_we))
             # For RCs
             for row in range(CGRA_ROWS):
-               RCs_instr_asm[row].append(rcs[row].hexToAsm(RCs_instr_hex[row][i], srf_sel, selected_vwr, vwr_row_we[row]))
+               vwr_re = vwr_row_we[CGRA_ROWS -1 -row]
+               RCs_instr_asm[row].append(rcs[row].hexToAsm(RCs_instr_hex[row][i], srf_sel, selected_vwr, vwr_re, srf_we, alu_srf_write, row))
             
         
         # Write the asm file

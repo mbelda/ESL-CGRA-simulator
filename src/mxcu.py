@@ -226,6 +226,8 @@ class MXCU_IMEM_WORD:
         for op in MXCU_ALU_OPS:
             if op.value == alu_op:
                 alu_asm = op.name
+        
+        # Muxes
         if muxa_sel > 13: # Duplicated
             muxa_sel = 9 # ZERO
         for sel in MXCU_MUX_SEL:
@@ -242,12 +244,19 @@ class MXCU_IMEM_WORD:
         if muxb_asm == "SRF":
             muxb_asm = "SRF(" + str(srf_sel) + ")"
 
+        # Destination
+        dest = ""
+        if rf_we == 1:
+            for sel in MXCU_DEST_REGS:
+                if sel.value == rf_wsel:
+                    if dest != "":
+                        dest += ", "
+                    dest += sel.name
         
-        for op in MXCU_DEST_REGS:
-            if op.value == rf_wsel:
-                dest = op.name
-        if dest == "SRF":
-            dest = "SRF(" + str(srf_sel) + ")"
+        if srf_we == 1 and alu_srf_write == 2: 
+            if dest != "":
+                dest += ", "
+            dest += "SRF(" + str(srf_sel) + ")"
 
         mxcu_asm = alu_asm + " " + dest + ", " + muxa_asm + ", " + muxb_asm
         
@@ -391,62 +400,6 @@ class MXCU:
             write_srf = "writting SRF(" + str(srf_sel) + ") from " + dest
         print(self.__class__.__name__ + ": " + mxcu_asm + " (selected: " + str(vwr_sel) + ", " + write_srf + ")")
 
-    # def sadd( val1, val2 ):
-    #     return c_int32( val1 + val2 ).value
-
-    # def ssub( val1, val2 ):
-    #     return c_int32( val1 - val2 ).value
-
-    # def sll( val1, val2 ):
-    #     return c_int32(val1 << val2).value
-
-    # def srl( val1, val2 ):
-    #     interm_result = (c_int32(val1).value & MAX_32b)
-    #     return c_int32(interm_result >> val2).value
-
-    # def lor( val1, val2 ):
-    #     return c_int32( val1 | val2).value
-
-    # def land( val1, val2 ):
-    #     return c_int32( val1 & val2).value
-
-    # def lxor( val1, val2 ):
-    #     return c_int32( val1 ^ val2).value
-
-    # def nop(self):
-    #     pass # Intentional
-
-    # def load_vwr(self):
-    #     pass
-
-    # def store_vwr(self):
-    #     pass
-
-    # def shilup(self):
-    #     pass
-    
-    # def shillo(self):
-    #     pass
-
-    # def sheven(self):
-    #     pass
-
-    # def shodd(self):
-    #     pass
-
-    # def shbreup(self):
-    #     pass
-
-    # def shbrelo(self):
-    #     pass
-
-    # def shcshiftup(self):
-    #     pass
-
-    # def shcshiftlo(self):
-    #     pass
-
-
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
         r_pattern = re.compile(r'^R(\d+)$')
@@ -542,23 +495,39 @@ class MXCU:
 
         if op in self.mxcu_arith_ops:
             alu_op = MXCU_ALU_OPS[op]
-            # Expect 3 operands: rd/srf, rs/srf/zero/one/two/half/last, rt/srf/zero/one/two/half/last
-            try:
-                rd = split_instr[1]
-                rs = split_instr[2]
-                rt = split_instr[3]
-            except:
-                raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected 3 operands.")
-            dest, srf_str_index = self.parseDestArith(rd, instr)
+            # Expect 3 or more operands
+            assert(len(split_instr) >= 3), "Instruction not valid for MXCU: " + instr + ". Expected at least 3 operands."
+
+            # Control more than one destination
+            rds = []
+            for i in range(1, len(split_instr) - 2):
+                rds.append(split_instr[i])
+            rs = split_instr[len(split_instr) - 2]
+            rt = split_instr[len(split_instr) - 1]
+
+            dests = []
+            srf_strs_idx = []
+            for i in range(len(rds)):
+                dest, aux_srf = self.parseDestArith(rds[i], instr)
+                dests.append(dest)
+                srf_strs_idx.append(aux_srf)
             muxA, srf_read_index = self.parseMuxArith(rs, instr)
             muxB, srf_muxB_index = self.parseMuxArith(rt, instr)
 
-            if srf_read_index > SRF_N_REGS or srf_muxB_index > SRF_N_REGS or srf_str_index > SRF_N_REGS:
+
+            if srf_read_index > SRF_N_REGS or srf_muxB_index > SRF_N_REGS or any(x >= SRF_N_REGS for x in srf_strs_idx):
                 raise ValueError("Instruction not valid for MXCU: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
 
-            if dest == None:
+            if any(x == None for x in dests):
                 raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected another format for first operand (dest).")
             
+            srf_str_index = -1
+            for x in srf_strs_idx:
+                if x != -1 and srf_str_index != -1:
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one writes to the SRF.")
+                elif x != -1:
+                    srf_str_index = x
+
             if muxB == None:
                 raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected another format for the second operand (muxB).")
 
@@ -573,10 +542,19 @@ class MXCU:
             if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
                 raise ValueError("Instruction not valid for MXCU: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
 
-            if srf_str_index == -1: # Writting on a  local reg
-                rf_we = 1
-                rf_wsel = dest
-            else:
+            # Check if writes to local regs
+            rf_wsel = 0
+            rf_we = 0
+            last = -1
+            for dest in dests:
+                if dest < MXCU_NUM_DREG:
+                    if last != -1 and last != dest:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Received writes to more than one local register.")
+                    last = dest
+                    rf_we = 1
+                    rf_wsel = dest
+
+            if srf_str_index != -1:
                 # Check that MXCU is the only one trying to write to SRF
                 if srf_we != 0:
                     raise ValueError("Instructions not valid for this cycle of the CGRA. Detected multiple writes to the SRF.")
@@ -595,7 +573,6 @@ class MXCU:
                 else:
                     srf_sel = srf_read_index
             
-
         if op in self.mxcu_nop_ops:
             alu_op = MXCU_ALU_OPS[op]
             # Expect 0 operands
@@ -605,10 +582,6 @@ class MXCU:
         # If after everything no one writes, the value should be 0
         if srf_sel == -1:
             srf_sel = 0
-        
-        # Add hexadecimal instruction
-        #self.imem.set_params(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-        #self.nInstr+=1
         
         word = MXCU_IMEM_WORD(vwr_row_we=vwr_row_we, vwr_sel=vwr_sel, srf_sel=srf_sel, alu_srf_write=alu_srf_write, srf_we=srf_we, rf_wsel=rf_wsel, rf_we=rf_we, alu_op=alu_op, muxb_sel=muxB, muxa_sel=muxA)
         return word
