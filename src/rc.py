@@ -92,11 +92,11 @@ class RC_IMEM:
         imem_word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxb_sel, muxa_sel=muxa_sel)
         self.IMEM[pos] = imem_word.get_word()
     
-    def get_instruction_asm(self, pos, srf_sel, selected_vwr):
+    def get_instruction_asm(self, pos, srf_sel, selected_vwr, vwr_re):
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = RC_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm(srf_sel, selected_vwr)   
+        return imem_word.get_word_in_asm(srf_sel, selected_vwr, vwr_re)   
     
     def get_instr_pseudo_asm(self, pos):
         imem_word = RC_IMEM_WORD()
@@ -119,13 +119,18 @@ class RC_IMEM:
         else:
             precision = "16-bit"
         
-        
+        if alu_op == 15: # Duplicated
+            alu_op = 0 # NOP
         for op in RC_ALU_OPS:
             if op.value == alu_op:
                 alu_opcode = op.name
+        if muxa_sel > 13: # Duplicated
+            muxa_sel = 10 # ZERO
         for sel in RC_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_res = sel.name
+        if muxb_sel > 13: # Duplicated
+            muxb_sel = 10 # ZERO
         for sel in RC_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_res = sel.name
@@ -191,7 +196,7 @@ class RC_IMEM_WORD:
         '''Get the hexadecimal representation of the word at index pos in the RC config IMEM'''
         return(hex(int(self.word, 2)))
     
-    def get_word_in_asm(self, srf_sel, selected_vwr):
+    def get_word_in_asm(self, srf_sel, selected_vwr, vwr_re):
         rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = self.decode_word()
         
         # Half-precision
@@ -201,28 +206,41 @@ class RC_IMEM_WORD:
             precision = ".H"
 
         # Input/dest muxes
+        if muxa_sel > 13: # Duplicated
+            muxa_sel = 10 # ZERO
         for sel in RC_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_asm = sel.name
         if muxa_asm == "SRF":
             muxa_asm = "SRF(" + str(srf_sel) + ")"
 
+        if muxb_sel > 13: # Duplicated
+            muxb_sel = 10 # ZERO
         for sel in RC_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_asm = sel.name
         if muxb_asm == "SRF":
             muxb_asm = "SRF(" + str(srf_sel) + ")"
         
-        
-        for sel in RC_DEST_REGS:
-            if sel.value == rf_wsel:
-                dest = sel.name
-        if dest == "SRF":
+        if vwr_re == 1:
+            if selected_vwr == 0:
+                vwr_name = 'A'
+            elif selected_vwr == 1:
+                vwr_name = 'B'
+            else:
+                vwr_name = 'C'
+            dest = "VWR_" + vwr_name
+        elif rf_we == 1:
+            for sel in RC_DEST_REGS:
+                if sel.value == rf_wsel:
+                    dest = sel.name
+        else:
             dest = "SRF(" + str(srf_sel) + ")"
-        if dest == "VWR":
-            dest = selected_vwr # The index is the value of the resgiter R0 of the MXCU unit
+
 
         # ALU ops
+        if alu_op == 15: # Duplicated
+            alu_op = 0 # NOP
         for op in RC_ALU_OPS:
             if op.value == alu_op:
                 alu_asm = op.name
@@ -250,7 +268,7 @@ class RC_IMEM_WORD:
         return rc_asm
     
     def get_word_pseudo_asm(self):
-        asm = self.get_word_in_asm(0,0)
+        asm = self.get_word_in_asm(0,0,0)
         # Replace SRF number
         asm = re.sub(r'SRF\(\d+\)', 'SRF(X)', asm)
         # Replace VWR letter
@@ -387,9 +405,9 @@ class RC:
             raise Exception(self.__class__.__name__ + ": ALU op not recognized")
                 
         
-    def run(self, pc, vwr2a, col):
+    def run(self, pc, vwr2a, col, row):
         # MXCU info
-        _, selected_vwr, srf_sel, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we= vwr2a.mxcus[col].imem.get_instruction_asm(pc)
         # This RC instruction
         rc_hex = self.imem.get_word_in_hex(pc)
         rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = RC_IMEM_WORD(hex_word=rc_hex).decode_word()
@@ -403,7 +421,7 @@ class RC:
             self.regs[rf_wsel] = self.alu.newRes
 
         # ---------- Print something -----------
-        rc_asm = self.imem.get_instruction_asm(pc, srf_sel, selected_vwr)
+        rc_asm = self.imem.get_instruction_asm(pc, srf_sel, selected_vwr, vwr_row_we[row])
         print(self.__class__.__name__ + ": " + rc_asm + " --> " + str(self.alu.newRes))
         
     def parseDestArith(self, rd, instr):
@@ -411,6 +429,7 @@ class RC:
         r_pattern = re.compile(r'^R(\d+)$')
         srf_pattern = re.compile(r'^SRF\((\d+)\)$')
         vwr_pattern = re.compile(r'^VWR_([A-Za-z])$')
+        rout_pattern = re.compile(r'^ROUT$')
 
         # Check if the input matches the 'R' pattern
         r_match = r_pattern.match(rd)
@@ -419,8 +438,13 @@ class RC:
             try:
                 ret = RC_DEST_REGS[rd]
             except:
-                raise ValueError("Instruction not valid for RC: " + instr + ". The accessed register must be betwwen 0 and " + str(RC_NUM_DREG -1) + ".")
+                raise Exception("Instruction not valid for RC: " + instr + ". The accessed register must be betwwen 0 and " + str(RC_NUM_DREG -1) + ".")
             return ret, -1, -1
+        
+        # Check if the input matches the 'ROUT' pattern
+        rout_match = rout_pattern.match(rd)
+        if rout_match:
+            return 4, -1, -1
 
         # Check if the input matches the 'SRF' pattern
         srf_match = srf_pattern.match(rd)
@@ -458,7 +482,7 @@ class RC:
             try:
                 ret = RC_MUX_SEL[rs]
             except:
-                raise ValueError("Instruction not valid for RC: " + instr + ". The accessed register must be between 0 and " + str(RC_NUM_DREG -1) + ".")
+                raise Exception("Instruction not valid for RC: " + instr + ". The accessed register must be between 0 and " + str(RC_NUM_DREG -1) + ".")
             return ret, -1
 
         # Check if the input matches the 'SRF' pattern
@@ -473,7 +497,7 @@ class RC:
             try:
                 ret = RC_MUX_SEL[rs]
             except:
-                raise ValueError("Instruction not valid for RC: " + instr + ". The accessed VWR must be A, B or C.")
+                raise Exception("Instruction not valid for RC: " + instr + ". The accessed VWR must be A, B or C.")
             return ret, -1
             
         # Check if the input matches the 'RCX' pattern
@@ -483,7 +507,7 @@ class RC:
             try:
                 ret = RC_MUX_SEL[rs]
             except:
-                raise ValueError("Instruction not valid for RC: " + instr + ". The accessed register is not a valid neighbour (RCT, RCB, RCR, RCL).")
+                raise Exception("Instruction not valid for RC: " + instr + ". The accessed register is not a valid neighbour (RCT, RCB, RCR, RCL).")
             return ret, -1
         
         # Check if the input matches the 'ZERO' pattern
@@ -513,7 +537,7 @@ class RC:
         try:
             ret = RC_MUXF_SEL[flag]
         except:
-            raise ValueError("Instruction not valid for RC: " + instr + ". The accessed ALU flags parameters is not valid (OWN, RCT, RCB, RCR, RCL).")
+            raise Exception("Instruction not valid for RC: " + instr + ". The accessed ALU flags parameters is not valid (OWN, RCT, RCB, RCR, RCL).")
 
         return ret
 
@@ -528,58 +552,89 @@ class RC:
         if op in self.rc_arith_ops:
             
             if '.H' in op:
-                raise ValueError("Half precision not supported yet.")
+                raise Exception("Half precision not supported yet.")
             elif '.FP' in op:
                 if op == "DIV.FP":
-                    raise ValueError("Float point division not supported yet.")
+                    raise Exception("Float point division not supported yet.")
                 if op == "MUL.FP":
                     alu_op = RC_ALU_OPS["FXP_MUL"]
             else:
                 alu_op = RC_ALU_OPS[op]
-            # Expect 3 operands: rd/srf, rs/srf/zero/one, rt/srf/zero/imm
-            try:
-                rd = split_instr[1]
-                rs = split_instr[2]
-                rt = split_instr[3]
-            except:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected 3 operands.")
-            dest, srf_str_index, vwr_str = self.parseDestArith(rd, instr)
+
+            # Expect 3 or more operands: rd/srf, rs/srf/zero/one, rt/srf/zero/imm
+            assert(len(split_instr) >= 3), "Instruction not valid for RC: " + instr + ". Expected at least 3 operands."
+
+            # Control more than one destination
+            rds = []
+            for i in range(1, len(split_instr) - 2):
+                rds.append(split_instr[i])
+            rs = split_instr[len(split_instr) - 2]
+            rt = split_instr[len(split_instr) - 1]
+
+            dests = []
+            srf_strs_idx = []
+            vwr_strs = []
+            for i in range(len(rds)):
+                dest, aux_srf, vwr_str = self.parseDestArith(rds[i], instr)
+                dests.append(dest)
+                srf_strs_idx.append(aux_srf)
+                vwr_strs.append(vwr_str)
             muxA, srf_read_index = self.parseMuxArith(rs, instr)
             muxB, srf_muxB_index = self.parseMuxArith(rt, instr)
 
-            if srf_read_index >= SRF_N_REGS or srf_muxB_index >= SRF_N_REGS or srf_str_index >= SRF_N_REGS:
-                raise ValueError("Instruction not valid for RC: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
+            if srf_read_index >= SRF_N_REGS or srf_muxB_index >= SRF_N_REGS or any(x >= SRF_N_REGS for x in srf_strs_idx):
+                raise Exception("Instruction not valid for RC: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
 
-            if dest == None:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected another format for first operand (dest).")
+            srf_str_index = -1
+            for x in srf_strs_idx:
+                if x != -1 and srf_str_index != -1:
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one writes to the SRF.")
+                elif x != -1:
+                    srf_str_index = x
+
+            vwr_str = -1
+            for x in vwr_strs:
+                if x != -1 and vwr_str != -1:
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one write to the VWR.")
+                elif x != -1:
+                    vwr_str = x
+
+            if any(x == None for x in dests):
+                raise Exception("Instruction not valid for RC: " + instr + ". Expected another format for the destination operand.")
             
             if muxA == None:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected another format for the second operand (muxA).")
+                raise Exception("Instruction not valid for RC: " + instr + ". Expected another format for muxA (" + rs +").")
 
             if muxB == None:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected another format for the third operand (muxB).")
+                raise Exception("Instruction not valid for RC: " + instr + ". Expected another format for muxB (" + rt +").")
             
             if srf_muxB_index != -1:
                 if srf_read_index != -1 and srf_muxB_index != srf_read_index:
-                    raise ValueError("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.") 
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.") 
                 srf_read_index = srf_muxB_index
 
-            if srf_str_index != -1 and srf_read_index != -1 and srf_str_index != srf_read_index:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
-
-            if srf_str_index == -1 and vwr_str == -1: # Writting on a  local reg
-                rf_we = 1
-                rf_wsel = dest
-            else:
-                rf_wsel = 0
-                rf_we = 0
+            for x in srf_strs_idx:
+                if x != -1:
+                    if srf_read_index == -1: 
+                        srf_read_index = x
+                    elif x != srf_read_index:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
+                    
+            # Check if writes to local regs
+            rf_wsel = 0
+            rf_we = 0
+            last = -1
+            for dest in dests:
+                if dest <= 1:
+                    if last != -1 and last != dest:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Expected writes to more than one local register.")
+                    last = dest
+                    rf_we = 1
+                    rf_wsel = dest
 
             op_mode = 0
             muxf_sel=RC_MUXF_SEL.OWN
 
-            # Add hexadecimal instruction
-            #self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA, pos=self.nInstr)
-            #self.nInstr+=1
             # Return read and write srf indexes and the flag to write on a vwr
             word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA)
             return srf_read_index, srf_str_index, vwr_str, word
@@ -588,10 +643,8 @@ class RC:
             alu_op = RC_ALU_OPS[op]
             # Expect 0 operands
             if len(split_instr) > 1:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Nop does not expect operands.")
+                raise Exception("Instruction not valid for RC: " + instr + ". Nop does not expect operands.")
             
-            #self.imem.set_params(alu_op=alu_op, pos=self.nInstr)
-            #self.nInstr+=1
             # Return read and write srf indexes
             word = RC_IMEM_WORD(alu_op=alu_op)
             return -1, -1, -1, word
@@ -602,38 +655,73 @@ class RC:
             if op == "ZFGA":
                 alu_op = RC_ALU_OPS["INB_ZF_INA"]
 
-            # Expect 2 operands
-            try:
-                rd = split_instr[1]
-                flag = split_instr[2]
-            except:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected 2 operands.")
-            
-            dest, srf_str_index, vwr_str = self.parseDestArith(rd, instr)
+            # Expect 2 or more operands: rd/srf, flag
+            assert(len(split_instr) >= 2), "Instruction not valid for RC: " + instr + ". Expected at least 2 operands."
+
+            # Control more than one destination
+            rds = []
+            for i in range(1, len(split_instr) - 1):
+                rds.append(split_instr[i])
+            flag = split_instr[len(split_instr) - 1]
+
+            dests = []
+            srf_strs_idx = []
+            vwr_strs = []
+            for i in range(len(rds)):
+                dest, srf_str_index, vwr_str = self.parseDestArith(rds[i], instr)
+                dests.append(dest)
+                srf_strs_idx.append(srf_str_index)
+                vwr_strs.append(vwr_str)
+
             muxf_sel = self.parseFlag(flag, instr)
 
-            if dest == None:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected another format for first operand (dest).")
+            if any(x == None for x in dests):
+                raise Exception("Instruction not valid for RC: " + instr + ". Expected another format for first operand (dest).")
             
+            srf_str_index = -1
+            for x in srf_strs_idx:
+                if x != -1 and srf_str_index != -1:
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one writes to the SRF.")
+                elif x != -1:
+                    srf_str_index = x
+            
+            vwr_str = -1
+            for x in vwr_strs:
+                if x != -1 and vwr_str != -1:
+                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one write to the VWR.")
+                elif x != -1:
+                    vwr_str = x
+
             if muxf_sel == None:
-                raise ValueError("Instruction not valid for RC: " + instr + ". Expected another format for second operand (flag).")
+                raise Exception("Instruction not valid for RC: " + instr + ". Expected another format for second operand (flag).")
+            
+            if any(x >= SRF_N_REGS for x in srf_strs_idx):
+                raise Exception("Instruction not valid for RC: " + instr + ". The accessed SRF must be between 0 and " + str(SRF_N_REGS -1) + ".")
 
-            if srf_str_index == -1 and vwr_str == -1: # Writting on a  local reg
-                rf_we = 1
-                rf_wsel = dest
-            else:
-                rf_wsel = 0
-                rf_we = 0
+            for x in srf_strs_idx:
+                if x != -1:
+                    if srf_read_index == -1: 
+                        srf_read_index = x
+                    elif x != srf_read_index:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Expected only reads/writes to the same reg of the SRF.")
 
-            # Add hexadecimal instruction
-            #self.imem.set_params(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, pos=self.nInstr)
-            #self.nInstr+=1
+            # Check if writes to local regs
+            rf_wsel = 0
+            rf_we = 0
+            last = -1
+            for dest in dests:
+                if dest <= 1:
+                    if last != -1 and last != dest:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Expected writes to more than one local register.")
+                    last = dest
+                    rf_we = 1
+                    rf_wsel = dest
+
             # Return read and write srf indexes and the flag to write on a vwr
             word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op)
             return -1, srf_str_index, vwr_str, word
         
+        raise Exception("Instruction not valid for RC: " + instr + ". Operation not recognised.")
 
-        raise ValueError("Instruction not valid for RC: " + instr + ". Operation not recognised.")
-
-    def hexToAsm(self, instr, srf_sel, selected_vwr):
-        return RC_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, selected_vwr)
+    def hexToAsm(self, instr, srf_sel, selected_vwr, vwr_we):
+        return RC_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, selected_vwr, vwr_we)
