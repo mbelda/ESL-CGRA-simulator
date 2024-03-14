@@ -102,10 +102,11 @@ class MXCU_IMEM:
         '''Print the human-readable instructions of the instruction at position pos in the instruction memory'''
         imem_word = MXCU_IMEM_WORD()
         imem_word.set_word(self.IMEM[pos])
-        return imem_word.get_word_in_asm()
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = imem_word.get_word_in_asm()
+        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we
 
     def get_instr_pseudo_asm(self, pos):
-        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = self.get_instruction_asm(pos)
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = self.get_instruction_asm(pos)
         return mxcu_asm
         
     def get_word_in_hex(self, pos):
@@ -138,9 +139,13 @@ class MXCU_IMEM:
         for op in MXCU_ALU_OPS:
             if op.value == alu_op:
                 alu_opcode = op.name
+        if muxa_sel > 13: # Duplicated
+            muxa_sel = 9 # ZERO      
         for sel in MXCU_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_res = sel.name
+        if muxb_sel > 13: # Duplicated
+            muxb_sel = 9 # ZERO
         for sel in MXCU_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_res = sel.name
@@ -221,13 +226,16 @@ class MXCU_IMEM_WORD:
         for op in MXCU_ALU_OPS:
             if op.value == alu_op:
                 alu_asm = op.name
-
+        if muxa_sel > 13: # Duplicated
+            muxa_sel = 9 # ZERO
         for sel in MXCU_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_asm = sel.name
         if muxa_asm == "SRF":
             muxa_asm = "SRF(" + str(srf_sel) + ")"
         
+        if muxb_sel > 13: # Duplicated
+            muxb_sel = 9 # ZERO
         for sel in MXCU_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_asm = sel.name
@@ -246,7 +254,7 @@ class MXCU_IMEM_WORD:
         if alu_asm == "NOP":
             mxcu_asm = alu_asm
         
-        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we
+        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we
     
     def get_word_pseudo_asm(self):
         return self.get_word_in_asm()
@@ -373,7 +381,7 @@ class MXCU:
             self.regs[rf_wsel] = self.alu.newRes
         
         # ---------- Print something -----------
-        mxcu_asm, vwr_sel, srf_sel, alu_srf_write, srf_we = self.imem.get_instruction_asm(pc)
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = self.imem.get_instruction_asm(pc)
         if srf_we == 0:
             write_srf = "not writting SRF"
         else:
@@ -381,7 +389,7 @@ class MXCU:
                 if op.value == alu_srf_write:
                     dest = op.name
             write_srf = "writting SRF(" + str(srf_sel) + ") from " + dest
-        print(self.__class__.__name__ + ": " + mxcu_asm + " (selected: " + vwr_sel + ", " + write_srf + ")")
+        print(self.__class__.__name__ + ": " + mxcu_asm + " (selected: " + str(vwr_sel) + ", " + write_srf + ")")
 
     # def sadd( val1, val2 ):
     #     return c_int32( val1 + val2 ).value
@@ -610,5 +618,5 @@ class MXCU:
         return mxcu_asm
 
     def hexToAsmPlus(self, instr):
-        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we = MXCU_IMEM_WORD(hex_word=instr).get_word_in_asm()
-        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we
+        mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = MXCU_IMEM_WORD(hex_word=instr).get_word_in_asm()
+        return mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we

@@ -156,9 +156,13 @@ class LSU_IMEM:
         for op in LSU_ALU_OPS:
             if op.value == alu_op:
                 alu_opcode = op.name
+        if muxa_sel > 11: # Duplicated
+            muxa_sel = 9 # ZERO        
         for sel in LSU_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_res = sel.name
+        if muxb_sel > 11: # Duplicated
+            muxb_sel = 9 # ZERO      
         for sel in LSU_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_res = sel.name
@@ -223,13 +227,16 @@ class LSU_IMEM_WORD:
         for op in LSU_ALU_OPS:
             if op.value == alu_op:
                 alu_op = op.name
-        
+        if muxa_sel > 11:
+            muxa_sel = 9 # ZERO
         for sel in LSU_MUX_SEL:
             if sel.value == muxa_sel:
                 muxa_asm = sel.name
-        if muxa_asm == "SRF":
+        if muxa_asm != None and muxa_asm == "SRF":
             muxa_asm = "SRF(" + str(srf_sel) + ")"
 
+        if muxb_sel > 11:
+            muxb_sel = 9 # ZERO
         for sel in LSU_MUX_SEL:
             if sel.value == muxb_sel:
                 muxb_asm = sel.name
@@ -431,7 +438,7 @@ class LSU:
 
     def run(self, pc, vwr2a, col):
         # MXCU info
-        _, _, srf_sel, alu_srf_write, srf_we = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        _, _, srf_sel, alu_srf_write, srf_we, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
         # This LSU instruction
         lsu_hex = self.imem.get_word_in_hex(pc)
         rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = LSU_IMEM_WORD(hex_word=lsu_hex).decode_word()

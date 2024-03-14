@@ -112,7 +112,9 @@ class LCU_IMEM:
             print ("LCU is in RC data control mode")
         else: 
             print ("LCU is in loop control mode")
-            
+
+        if alu_op == 15: # Duplicated
+            alu_op = 0 # NOP
         for op in LCU_ALU_OPS:
             if op.value == alu_op:
                 alu_opcode = op.name
@@ -199,6 +201,8 @@ class LCU_IMEM_WORD:
         imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = self.decode_word()
                 
         # ALU op
+        if alu_op == 15: # Duplicated
+            alu_op = 0 # NOP
         for op in LCU_ALU_OPS:
             if op.value == alu_op:
                 alu_asm = op.name
@@ -246,6 +250,10 @@ class LCU_IMEM_WORD:
         # If branches
         if alu_asm in {"BEQ", "BNE", "BLT", "BGEPD"}:
             asm_word = alu_asm + " " + muxb_asm + ", " + muxa_asm + ", " + str(imm)
+            return asm_word
+        # JUMP
+        if alu_asm in {"JUMP"}:
+            asm_word = alu_asm + " " + muxb_asm + ", " + muxa_asm
             return asm_word
         
         asm_word = alu_asm + imm_asm + " " + dest + ", " + muxb_asm + ", " + muxa_asm
@@ -392,7 +400,7 @@ class LCU:
 
     def run(self, pc, vwr2a, col):
         # MXCU info
-        _, _, srf_sel, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
+        _, _, srf_sel, _, _, _ = vwr2a.mxcus[col].imem.get_instruction_asm(pc)
         # This LCU instruction
         lcu_hex = self.imem.get_word_in_hex(pc)
         imm, rf_wsel, rf_we, alu_op, br_mode, muxb_sel, muxa_sel = LCU_IMEM_WORD(hex_word=lcu_hex).decode_word()

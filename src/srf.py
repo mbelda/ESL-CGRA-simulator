@@ -6,11 +6,11 @@ class SRF():
     def __init__(self):
         self.regs = [0 for _ in range(SRF_N_REGS)]
     
-    def checkReadsWrites(self, srf_read_idx_lcu, srf_read_idx_lsu, srf_read_idx_rc, srf_str_idx_lcu, srf_str_idx_lsu, srf_str_idx_rc):
+    def checkReadsWrites(self, srf_read_idx_lcu, srf_read_idx_lsu, srf_read_idx_rc, srf_str_idx_lcu, srf_str_idx_lsu, srf_str_idx_rc, cycle):
         # ---------------------- Check reads/writes to SRF/VWR ---------------------- 
         # Check: Only RC0 should be able to write to SRF
         if np.any(np.array(srf_str_idx_rc[1:]) != -1):
-            raise ValueError("Instructions not valid for this cycle of the CGRA. Only the RC on row 0 can write to the SRF.")
+            raise ValueError("Instructions not valid for this cycle (" + str(cycle) + ") of the CGRA. Only the RC on row 0 can write to the SRF.")
         
         # Check: Only reads to the same SRF register can be made by every unit
         srf_sel = -1 # No one reads
@@ -22,7 +22,7 @@ class SRF():
         if -1 in unique_vector_read_srf:
             unique_vector_read_srf = unique_vector_read_srf[unique_vector_read_srf != -1]
         if len(unique_vector_read_srf) > 1:
-            raise ValueError("Instructions not valid for this cycle of the CGRA. Detected reads to different registers of the SRF.")
+            raise ValueError("Instructions not valid for this cycle (" + str(cycle) + ") of the CGRA. Detected reads to different registers of the SRF.")
         if np.any(all_read_srf != -1):
             srf_sel = (all_read_srf[all_read_srf != -1])[0]
 
@@ -35,13 +35,13 @@ class SRF():
         
         str_idx = all_str_srf[all_str_srf != -1]
         if len(str_idx) > 1:
-            raise ValueError("Instructions not valid for this cycle of the CGRA. Detected multiple writes to the SRF.")
+            raise ValueError("Instructions not valid for this cycle (" + str(cycle) + ") of the CGRA. Detected multiple writes to the SRF.")
         if len(str_idx) > 0:
             srf_we = 1
 
         # Check: The reads and writes to the SRF are made to the same register
         if srf_we != 0 and srf_sel != -1 and srf_sel != str_idx[0]:
-            raise ValueError("Instructions not valid for this cycle of the CGRA. Detected reads and writes to different registers of the SRF.")
+            raise ValueError("Instructions not valid for this cycle (" + str(cycle) + ") of the CGRA. Detected reads and writes to different registers of the SRF.")
         
         # Set who writes to the SRF
         alu_srf_write = 0 # Default
