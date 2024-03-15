@@ -1,3 +1,7 @@
+"""srf.py: Data structures and objects emulating the Scalar Register File of the VWR2A architecture"""
+__author__      = "María José Belda Beneyto"
+__email__       = "mbelda@ucm.es"
+
 import numpy as np
 
 from .params import *
@@ -28,19 +32,21 @@ class SRF():
 
         # Check: Only one write can be done to a register of the SRF
         srf_we = 0 # Default
+        srf_str_idx = -1 # Default
         all_str_srf = srf_str_idx_rc
         all_str_srf.append(srf_str_idx_lcu)
         all_str_srf.append(srf_str_idx_lsu)
         all_str_srf = np.array(all_str_srf)
         
-        str_idx = all_str_srf[all_str_srf != -1]
-        if len(str_idx) > 1:
+        all_str_srf = all_str_srf[all_str_srf != -1]
+        if len(all_str_srf) > 1:
             raise ValueError("Instructions not valid for this cycle (" + str(cycle) + ") of the CGRA. Detected multiple writes to the SRF.")
-        if len(str_idx) > 0:
+        if len(all_str_srf) > 0:
             srf_we = 1
+            srf_str_idx = all_str_srf[0]
 
         # Check: The reads and writes to the SRF are made to the same register
-        if srf_we != 0 and srf_sel != -1 and srf_sel != str_idx[0]:
+        if srf_we != 0 and srf_sel != -1 and srf_sel != srf_str_idx:
             raise ValueError("Instructions not valid for this cycle (" + str(cycle) + ") of the CGRA. Detected reads and writes to different registers of the SRF.")
         
         # Set who writes to the SRF
@@ -51,5 +57,9 @@ class SRF():
             alu_srf_write = 0 # LCU
         if srf_str_idx_lsu != -1:
             alu_srf_write = 3 # LSU
+        
+        srf_wsel = srf_sel
+        if srf_str_idx != -1:
+            srf_wsel = srf_str_idx
                 
-        return srf_sel, srf_we, alu_srf_write
+        return srf_wsel, srf_we, alu_srf_write

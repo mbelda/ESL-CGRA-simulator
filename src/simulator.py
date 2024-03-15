@@ -11,11 +11,12 @@ import csv
 from .vwr2a import CGRA, CGRA_ROWS, CGRA_COLS
 from .spm import *
 from .imem import IMEM_N_LINES
-from .lcu import LCU_NUM_CREG, LCU_IMEM_WORD
-from .lsu import LSU_NUM_CREG, LSU_IMEM_WORD
-from .mxcu import MXCU_NUM_CREG, MXCU_IMEM_WORD
-from .rc import RC_NUM_CREG, RC_IMEM_WORD
+from .lcu import LCU_NUM_CREG, LCU_IMEM_WORD, LCU
+from .lsu import LSU_NUM_CREG, LSU_IMEM_WORD, LSU
+from .mxcu import MXCU_NUM_CREG, MXCU_IMEM_WORD, MXCU
+from .rc import RC_NUM_CREG, RC_IMEM_WORD, RC
 from .kmem import KER_CONF_N_REG
+#from .srf import *
 
 class SIMULATOR:
     def __init__(self):
@@ -187,6 +188,7 @@ class SIMULATOR:
         # Load csv file with instructions
         # LCU, LSU, MXCU, RC0, RC1, ..., RCN
         file_path = kernel_path + FILENAME_INSTR + "_asm" + version + EXT
+        print("ASM to Hex")
         print("Processing file: " +  file_path + "...")
         with open( file_path, 'r') as file:
 
@@ -231,7 +233,7 @@ class SIMULATOR:
                     except:
                         raise Exception("CSV instruction structure is not appropiate. Expected: LCU_instr, LSU_instr, MXCU_instr, RC0_instr, ..., RC" + str(CGRA_ROWS -1) + "_instr. It should have " + str(nUsedCols*nInstrPerCol) + " rows plus the header.")
                     instr_cont+=1
-        
+                    
         # Parse every instruction
         imem_addr = imem_start_addr
         for col in range(ini_col, end_col+1):
@@ -260,8 +262,7 @@ class SIMULATOR:
                     self.vwr2a.imem.rcs_imem[row][imem_addr] = hex_word
                 
                 # Check SRF reads/writes
-                srf_sel, srf_we, alu_srf_write = srf.checkReadsWrites(srf_read_idx_lcu, srf_read_idx_lsu, srf_read_idx_rc, srf_str_idx_lcu, srf_str_idx_lsu, srf_str_idx_rc, i)
-                
+                srf_wsel, srf_we, alu_srf_write = srf.checkReadsWrites(srf_read_idx_lcu, srf_read_idx_lsu, srf_read_idx_rc, srf_str_idx_lcu, srf_str_idx_lsu, srf_str_idx_rc, i)
                 # Check vwr reads/writes
                 # Enable the write to a VWR for each RC
                 vwr_row_we = [0 if num == -1 else 1 for num in vwr_str_rc]
@@ -278,14 +279,14 @@ class SIMULATOR:
                 # For MXCU (checks SRF write of itself)
                 MXCU_inst = MXCU_instr[col][i]
                 reverse = vwr_row_we[::-1]
-                hex_word = mxcu.asmToHex(MXCU_inst, srf_sel, srf_we, alu_srf_write, reverse, vwr_sel)
+                hex_word = mxcu.asmToHex(MXCU_inst, srf_wsel, srf_we, alu_srf_write, reverse, vwr_sel)
                 self.vwr2a.imem.mxcu_imem[imem_addr] = hex_word
 
                 imem_addr+=1
         
         # Write instructions to bitstream
         self.create_header_file(kernel_path)
-        self.create_hex_csv_file(kernel_path, version + "_test")
+        self.create_hex_csv_file(kernel_path, version + "_autogen")
 
     def create_hex_csv_file(self, kernel_path, version):
         file_name = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
@@ -362,6 +363,7 @@ class SIMULATOR:
             file.write("#endif // _DSIP_BITSTREAM_H_")
         
     def compileHexToAsm(self, kernel_path, version=""):
+        print("Hex to ASM")
         # String buffers
         LCU_instr_hex = []
         LSU_instr_hex = []
