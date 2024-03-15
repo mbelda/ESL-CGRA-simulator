@@ -590,6 +590,7 @@ class RC:
                 dests.append(dest)
                 srf_strs_idx.append(aux_srf)
                 vwr_strs.append(vwr_str)
+            #print("RC: instr = " + instr + " --> " + str(vwr_strs))
             muxA, srf_read_index = self.parseMuxArith(rs, instr)
             muxB, srf_muxB_index = self.parseMuxArith(rt, instr)
 
@@ -605,10 +606,11 @@ class RC:
 
             vwr_str = -1
             for x in vwr_strs:
-                if x != -1 and vwr_str != -1:
-                    raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one write to the VWR.")
-                elif x != -1:
-                    vwr_str = x
+                if x != -1:
+                    if vwr_str != -1 and x != vwr_str:
+                        raise Exception("Instruction not valid for RC: " + instr + ". Expected at most one write to the VWR.")
+                    else:
+                        vwr_str = x
 
             if any(x == None for x in dests):
                 raise Exception("Instruction not valid for RC: " + instr + ". Expected another format for the destination operand.")

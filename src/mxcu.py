@@ -122,7 +122,7 @@ class MXCU_IMEM:
             if vwr.value == vwr_sel:
                 selected_vwr = vwr.name
         
-        indices_of_written_rows = np.where(vwr_row_we[::-1])[0]
+        indices_of_written_rows = np.where(vwr_row_we)[0]
         if len(indices_of_written_rows)>0:
             print("Writing to VWR rows {0} of {1}".format(indices_of_written_rows, selected_vwr))
         else:
@@ -300,7 +300,9 @@ class MXCU_IMEM_WORD:
         for i in range(len(self.vwr_row_we)):
             one_hot_vwr_row_we.append(int(self.vwr_row_we[i:i+1],2))
         
-        return one_hot_vwr_row_we, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel
+        reverse = one_hot_vwr_row_we[::-1]
+                
+        return reverse, vwr_sel, srf_sel, alu_srf_write, srf_we, rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel
     
 
 class MXCU:
