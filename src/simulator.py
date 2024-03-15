@@ -120,7 +120,6 @@ class SIMULATOR:
         addr = imem_start_addr
         for col in range(ini_col, end_col+1):
             pos = 0
-            print("LCU")
             for j in range(n_instr_per_col):
                 # Debug
                 print(self.vwr2a.imem.lcu_imem[addr].get_word_in_hex())
@@ -138,11 +137,7 @@ class SIMULATOR:
         exit = False
         
         while pc < n_instr_per_col and not exit:
-            print("---------------------------------------------")
-            print("                PC: " + str(pc))
-            print("---------------------------------------------")
             for col in range(ini_col, end_col+1):
-                print("------- Col: " + str(col) + " -------")
                 self.vwr2a.mxcus[col].run(pc, self.vwr2a, col)
                 self.vwr2a.lsus[col].run(pc, self.vwr2a, col) # Check if they need anything from the others
                 for rc in range(CGRA_ROWS):
@@ -269,7 +264,6 @@ class SIMULATOR:
                 
                 # Check vwr reads/writes
                 # Enable the write to a VWR for each RC
-                print(str(i) + ": " + str(vwr_str_rc))
                 vwr_row_we = [0 if num == -1 else 1 for num in vwr_str_rc]
                 # All the RCs should write to the same VWR in each cycle
                 vwr_sel = 0 # Default value
@@ -281,7 +275,6 @@ class SIMULATOR:
                     raise Exception("Instructions not valid for this cycle of the CGRA. Detected writes from different RCs to different VWRs.")
                 if len(unique_vwr_str_rc) > 0:
                     vwr_sel = unique_vwr_str_rc[0] # This is already prepared to be 0, 1 or 2               
-                print("vwr_sel: " + str(vwr_sel))
                 # For MXCU (checks SRF write of itself)
                 MXCU_inst = MXCU_instr[col][i]
                 reverse = vwr_row_we[::-1]
@@ -423,9 +416,6 @@ class SIMULATOR:
         mxcu = self.vwr2a.mxcus[0]
         srf = self.vwr2a.srfs[0]
         for i in range(len(LCU_instr_hex)):
-            print("---------------------------------")
-            print("i = " + str(i))
-            print("---------------------------------")
             # For MXCU
             mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = mxcu.hexToAsmPlus(MXCU_instr_hex[i])
             MXCU_instr_asm.append(mxcu_asm)
@@ -435,10 +425,8 @@ class SIMULATOR:
             LSU_instr_asm.append(lsu.hexToAsm(LSU_instr_hex[i], srf_sel, alu_srf_write, srf_we))
             # For RCs
             for row in range(CGRA_ROWS):
-               print("RC" + str(row) + ": vwr_re = " + str(vwr_row_we))
-               print("RC Hex: " + RCs_instr_hex[row][i])
-               print("MXCU Hex: " + MXCU_instr_hex[i])
-               RCs_instr_asm[row].append(rcs[row].hexToAsm(RCs_instr_hex[row][i], srf_sel, selected_vwr, vwr_row_we[row], srf_we, alu_srf_write, row))
+               rc = rcs[row]
+               RCs_instr_asm[row].append(rc.hexToAsmRc(RCs_instr_hex[row][i], srf_sel, selected_vwr, vwr_row_we[row], srf_we, alu_srf_write, row))
             
         # Write the asm file
         file_name_asm = kernel_path + FILENAME_INSTR + "_asm" + version + EXT

@@ -225,13 +225,7 @@ class RC_IMEM_WORD:
         # Destination
         dest = ""
         if vwr_re == 1:
-            if selected_vwr == 0:
-                vwr_name = 'A'
-            elif selected_vwr == 1:
-                vwr_name = 'B'
-            else:
-                vwr_name = 'C'
-            dest += "VWR_" + vwr_name
+            dest += selected_vwr
         
         if rf_we == 1:
             for sel in RC_DEST_REGS:
@@ -472,7 +466,7 @@ class RC:
             if vwr_match.group(1) == 'C':
                 return RC_DEST_REGS["VWR"], -1, 2
 
-        return None, -1, -1, -1
+        return None, -1, -1
 
     # Returns the value for muxA and the number of the srf accessed (-1 if it isn't accessed)
     def parseMuxArith(self, rs, instr):
@@ -590,7 +584,6 @@ class RC:
                 dests.append(dest)
                 srf_strs_idx.append(aux_srf)
                 vwr_strs.append(vwr_str)
-            #print("RC: instr = " + instr + " --> " + str(vwr_strs))
             muxA, srf_read_index = self.parseMuxArith(rs, instr)
             muxB, srf_muxB_index = self.parseMuxArith(rt, instr)
 
@@ -729,5 +722,5 @@ class RC:
         
         raise Exception("Instruction not valid for RC: " + instr + ". Operation not recognised.")
 
-    def hexToAsm(self, instr, srf_sel, selected_vwr, vwr_we, srf_we, srf_wd, row):
+    def hexToAsmRc(self, instr, srf_sel, selected_vwr, vwr_we, srf_we, srf_wd, row):
         return RC_IMEM_WORD(hex_word=instr).get_word_in_asm(srf_sel, selected_vwr, vwr_we, srf_we, srf_wd, row)
