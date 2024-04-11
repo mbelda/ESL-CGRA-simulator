@@ -8,6 +8,8 @@ This simulator does not include the compilation of C code into VWR2A-compatible 
 # Structure
 The `develop_new_kernel.ipynb` file teaches you how to understand existing VWR2A kernels and start writing new ones.
 
+The `vwr2a_docs` folder includes important information about the strucutre and funciton of the architecture.
+
 The `src/` folder contains Python structures modeling each architectural module of the VWR2A, functions for encoding/decoding the Assembly language of each of these blocks, and (future work) simulations of its processing and memeory elements.
 
 The `kernels/` folder contains all existing kernels written for the VWR2A, as well as insructions for using them. It is mandatory that every new kernel written for the VWR2A contains a README describing the usage of the kernel (i.e. expected inputs/outputs, how to initialize the Scalar Register File, where to write data and read the results in memory).
