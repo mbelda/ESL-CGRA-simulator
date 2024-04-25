@@ -318,20 +318,21 @@ class RC:
         self.alu = ALU()
     
     # Returns the value for mux
-    def getMuxValue(self, mux, vwr2a, col, srf_sel):
+    def getMuxValue(self, mux, vwr2a, col, srf_sel, row):
         mxcu_r0 = vwr2a.mxcus[col].regs[0] # VWR_IDX
+        vwr_offset = int(SPM_NWORDS/CGRA_ROWS)*row
         if mux == 0: # VWR_A
             mxcu_r5 = vwr2a.mxcus[col].regs[5] # MASK_VWR_A
             slice_idx = mxcu_r0 & mxcu_r5
-            muxValue = vwr2a.vwrs[col][0].getIdx(slice_idx)
+            muxValue = vwr2a.vwrs[col][0].getIdx(slice_idx + vwr_offset)
         elif mux == 1: # VWR_B
             mxcu_r6 = vwr2a.mxcus[col].regs[6] # MASK_VWR_B
             slice_idx = mxcu_r0 & mxcu_r6
-            muxValue = vwr2a.vwrs[col][1].getIdx(slice_idx)
+            muxValue = vwr2a.vwrs[col][1].getIdx(slice_idx + vwr_offset)
         elif mux == 2: # VWR_C
             mxcu_r7 = vwr2a.mxcus[col].regs[7] # MASK_VWR_C
             slice_idx = mxcu_r0 & mxcu_r7
-            muxValue = vwr2a.vwrs[col][2].getIdx(slice_idx)
+            muxValue = vwr2a.vwrs[col][2].getIdx(slice_idx + vwr_offset)
         elif mux == 3: # SRF
             muxValue = vwr2a.srfs[col].regs[srf_sel]
         elif mux == 4: # R0
@@ -363,7 +364,7 @@ class RC:
             self.alu.nop()
         elif alu_op == 1: # SADD
             if half_precision: self.alu.saddh(muxa_val, muxb_val)
-            else:  self.alu.sadd(muxa_val, muxb_val)
+            else: self.alu.sadd(muxa_val, muxb_val)
         elif alu_op == 2: # SSUB
             if half_precision: self.alu.ssubh(muxa_val, muxb_val)
             else:  self.alu.ssub(muxa_val, muxb_val)
@@ -416,8 +417,8 @@ class RC:
         rc_hex = self.imem.get_word_in_hex(pc)
         rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel = RC_IMEM_WORD(hex_word=rc_hex).decode_word()
         # Get muxes value
-        muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel)
-        muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel)
+        muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel, row)
+        muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel, row)
         # ALU op
         self.runAlu(alu_op, muxa_val, muxb_val, op_mode, muxf_sel)
         # Write result locally
@@ -427,7 +428,7 @@ class RC:
         # ---------- Print something -----------
         vwr_re = vwr_row_we[CGRA_ROWS -1 -row] # The opposite way around because its like a binary number where the last one is the least significant so RC0
         rc_asm = self.imem.get_instruction_asm(pc, srf_sel, selected_vwr, vwr_re, srf_we, alu_srf_write, row)
-        print(self.__class__.__name__ + ": " + rc_asm + " --> " + str(self.alu.newRes))
+        print(self.__class__.__name__ + str(row) +": " + rc_asm + " --> ALU res = " + str(self.alu.newRes))
         
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern

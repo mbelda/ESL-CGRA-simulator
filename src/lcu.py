@@ -329,31 +329,26 @@ class LCU:
 
     def getMuxValue(self, mux, vwr2a, col, srf_sel, imm, muxA, bgepd):
         if mux <= 3 : # Rx
+            muxValue = self.regs[mux]
             if bgepd and muxA:
-                self.regs[mux] -= 1
-            else:
-                muxValue = self.regs[mux]
+                muxValue -= 1
         elif mux == 4: # SRF
+            muxValue = vwr2a.srfs[col].regs[srf_sel]
             if bgepd and muxA:
-                vwr2a.srfs[col].regs[srf_sel] -= 1
-            else:
-                muxValue = vwr2a.srfs[col].regs[srf_sel]
+                muxValue -= 1
         elif mux == 5: # LAST
+            muxValue = int(SPM_NWORDS/CGRA_ROWS) -1 # 128/4 -1 = 31 (last index)
             if bgepd and muxA:
-                muxValue = SPM_NWORDS/CGRA_ROWS -2 # 128/4 -2 = 32 -2 = 30
-            else:
-                muxValue = SPM_NWORDS/CGRA_ROWS -1 # 128/4 -1 = 31 (last index)
+                muxValue -= 1
         elif mux == 6: # ZERO
+            muxValue = 0
             if bgepd and muxA:
-                muxValue = -1
-            else:
-                muxValue = 0
+                muxValue -= 1
         elif mux == 7: # IMM or ONE
             if muxA:
+                muxValue = imm
                 if bgepd:
-                    muxValue = imm -1
-                else:  
-                    muxValue = imm
+                    muxValue -= 1                    
             else:
                 muxValue = 1
         else:
@@ -361,6 +356,7 @@ class LCU:
         return muxValue
     
     def runAlu(self, alu_op, muxa_val, muxb_val, imm, br_mode, vwr2a, col):
+        self.branch = 0
         if alu_op == 0: # NOP
             self.alu.nop()
         elif alu_op == 1: # SADD
@@ -405,6 +401,7 @@ class LCU:
             if alu_op == 11 and (greater or equal): # BGEPD
                 self.branch = 1
                 self.branch_pc = imm
+                self.alu.ssub(muxa_val, 0) # The ALU result is the decrement that it is already in muxA
             if alu_op == 12 and not (greater or equal): # BLT
                 self.branch = 1
                 self.branch_pc = imm
@@ -436,7 +433,7 @@ class LCU:
             self.regs[rf_wsel] = self.alu.newRes
         
         # ---------- Print something -----------
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, srf_we, alu_srf_write) + " --> " + str(self.alu.newRes))
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, srf_we, alu_srf_write) + " --> ALU res = " + str(self.alu.newRes))
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern
@@ -664,7 +661,6 @@ class LCU:
                     raise ValueError("Instruction not valid for LCU: " + instr + ". Expected another format for muxA.")
                 muxA = LCU_MUXA_SEL["IMM"]
             
-            
             try:
                 imm = int(imm_str) 
             except:
@@ -680,8 +676,8 @@ class LCU:
 
             br_mode = 0
             
-            # TODO: How does BGEPD really work? The result of the ALU is the first operand minus one
-            # Write SRF
+            # How does BGEPD really work? The result of the ALU is the first operand minus one
+            # And it writes to SRF if it is the first operand
             srf_str_index = srf_muxA_index  
             
             # Check if writes to local regs

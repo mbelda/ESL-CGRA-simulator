@@ -57,6 +57,7 @@ class CGRA:
         self.kmem.addKernel(num_instructions_per_col=num_instructions_per_col, imem_add_start=imem_add_start, col_one_hot=col_one_hot, srf_spm_addres=srf_spm_addres, nKernel=kernel_number)
         
     def updateSharedValues(self):
+        # ALUs
         for col in range(CGRA_COLS):
             self.lcus[col].alu.updateALUValues()
             self.lsus[col].alu.updateALUValues()
@@ -64,4 +65,8 @@ class CGRA:
             for col in range(CGRA_COLS):
                 for row in range(CGRA_ROWS):
                     self.rcs[col][row].alu.updateALUValues()
+        # Write on SRF
+                    
+        # Write on VWRs
+        
         

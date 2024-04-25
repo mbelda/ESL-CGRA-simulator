@@ -9,5 +9,6 @@ class SPM:
         self.lines[nline] = vec
     
     def getLine(self, nline):
-        assert(nline >= 0 & nline < SPM_NLINES), "SPM: Number of SPM line out of bounds. It should be >= 0 and < " + str(SPM_NLINES) + "."
+        if nline < 0 or nline >= SPM_NLINES:
+            raise Exception("SPM: Number of SPM line " + str(nline) + " out of bounds. It should be >= 0 and < " + str(SPM_NLINES) + ".")
         return self.lines[nline]

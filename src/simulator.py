@@ -15,7 +15,7 @@ from .lcu import LCU_NUM_CREG, LCU_IMEM_WORD, LCU
 from .lsu import LSU_NUM_CREG, LSU_IMEM_WORD, LSU
 from .mxcu import MXCU_NUM_CREG, MXCU_IMEM_WORD, MXCU
 from .rc import RC_NUM_CREG, RC_IMEM_WORD, RC
-from .kmem import KER_CONF_N_REG
+from .kmem import KER_CONF_N_REG, KMEM_WORD
 #from .srf import *
 
 class SIMULATOR:
@@ -33,7 +33,7 @@ class SIMULATOR:
         else:
             col_one_hot = 2 # Only second col
         self.vwr2a.kernel_config(col_one_hot, num_instructions_per_col, imem_add_start, srf_spm_addres, kernel_number)
-
+    
     def parseColUsageFromOneHot(self, col_one_hot):
         # Control the columns used
         if col_one_hot == 1: # Only col 0
@@ -123,7 +123,6 @@ class SIMULATOR:
             pos = 0
             for j in range(n_instr_per_col):
                 # Debug
-                print(self.vwr2a.imem.lcu_imem[addr].get_word_in_hex())
                 self.vwr2a.lcus[col].imem.set_word(int(self.vwr2a.imem.lcu_imem[addr].get_word(),2), pos)
                 self.vwr2a.lsus[col].imem.set_word(int(self.vwr2a.imem.lsu_imem[addr].get_word(),2), pos)
                 self.vwr2a.mxcus[col].imem.set_word(int(self.vwr2a.imem.mxcu_imem[addr].get_word(),2), pos)
@@ -138,11 +137,15 @@ class SIMULATOR:
         exit = False
         
         while pc < n_instr_per_col and not exit:
+            print("---------------------")
+            print("       PC: " + str(pc))
+            print("---------------------")
             for col in range(ini_col, end_col+1):
-                self.vwr2a.mxcus[col].run(pc, self.vwr2a, col)
                 self.vwr2a.lsus[col].run(pc, self.vwr2a, col) # Check if they need anything from the others
                 for rc in range(CGRA_ROWS):
                     self.vwr2a.rcs[col][rc].run(pc, self.vwr2a, col, rc)
+                # RCs before MSCU becuase this one can alterate the VWR idx
+                self.vwr2a.mxcus[col].run(pc, self.vwr2a, col)
                 # Last the LCU because it might need the ALU flags of the RCs and modifies VWR and SRF
                 self.vwr2a.lcus[col].run(pc, self.vwr2a, col)
             self.vwr2a.updateSharedValues()
@@ -166,6 +169,9 @@ class SIMULATOR:
     
     def loadSPMData(self, data):
         self.vwr2a.loadSPMData(data)
+
+    def getSPMLine(self, nline):
+        return self.vwr2a.spm.getLine(nline)
 
     def displaySPMLine(self, nline):
         values_list = ''.join(str(x) + ", " for x in self.vwr2a.spm.getLine(nline))
@@ -290,6 +296,7 @@ class SIMULATOR:
 
     def create_hex_csv_file(self, kernel_path, version):
         file_name = kernel_path + FILENAME_INSTR + "_hex" + version + EXT
+        print("Creating file: " + file_name)
         with open(file_name, 'w+') as csvfile:
             writer = csv.writer(csvfile)
 
@@ -308,6 +315,7 @@ class SIMULATOR:
 
     def create_header_file(self, kernel_path):
         file_name = kernel_path + 'dsip_bitstream.h'
+        print("Creating file: " + file_name)
         with open(file_name, 'w+') as file:
             file.write("#ifndef _DSIP_BITSTREAM_H_\n#define _DSIP_BITSTREAM_H_\n\n#include <stdint.h>\n\n#include \"dsip.h\"\n\n")
 
@@ -369,6 +377,7 @@ class SIMULATOR:
         LSU_instr_hex = []
         MXCU_instr_hex = []
         RCs_instr_hex = [[] for _ in range(CGRA_ROWS)]
+        KMEM_instr_hex = [] #TODO: Prepared but not used
 
         LCU_instr_asm = []
         LSU_instr_asm = []
@@ -384,10 +393,11 @@ class SIMULATOR:
             csv_reader = csv.reader(file)
             
             # Process the header
-            lcu_idx = 0
-            lsu_idx = 0
-            mxcu_idx = 0
-            rcs_idx=[0 for _ in range(CGRA_ROWS)]
+            lcu_idx = -1
+            lsu_idx = -1
+            mxcu_idx = -1
+            kmem_idx = -1
+            rcs_idx=[-1 for _ in range(CGRA_ROWS)]
             header = next(csv_reader, None)
             for i in range(len(header)):
                 if header[i] == "LCU":
@@ -396,27 +406,36 @@ class SIMULATOR:
                     lsu_idx = i
                 elif header[i] == "MXCU":
                     mxcu_idx = i
+                elif header[i] == "KMEM":
+                    kmem_idx = i
                 else:
                     for rc in range(CGRA_ROWS):
                         if header[i] == ("RC" + str(rc)):
                             rcs_idx[rc] = i
             
+            # Check the header
+            rcs_idx_array = np.array(rcs_idx)
+            if lcu_idx == -1 or lsu_idx == -1 or mxcu_idx == -1 or np.any(rcs_idx_array == -1):
+                raise Exception("Not enough columns provided in the csv.")
+            
             # For each used column read the number of instructions
+            cont = 0
             for row in csv_reader:
                 LCU_instr_hex.append(row[lcu_idx])
                 LSU_instr_hex.append(row[lsu_idx])
                 MXCU_instr_hex.append(row[mxcu_idx])
-                index = 4
+                if cont < KER_CONF_N_REG and kmem_idx != -1:
+                    cont+=1
+                    KMEM_instr_hex.append(row[kmem_idx])
                 for rc in range(CGRA_ROWS):
                     RCs_instr_hex[rc].append(row[rcs_idx[rc]])
-                    index+=1
+
                 
         # Translate
         lcu = self.vwr2a.lcus[0]
         lsu = self.vwr2a.lsus[0]
         rcs = self.vwr2a.rcs[0]
         mxcu = self.vwr2a.mxcus[0]
-        srf = self.vwr2a.srfs[0]
         for i in range(len(LCU_instr_hex)):
             # For MXCU
             mxcu_asm, selected_vwr, srf_sel, alu_srf_write, srf_we, vwr_row_we = mxcu.hexToAsmPlus(MXCU_instr_hex[i])
@@ -432,6 +451,7 @@ class SIMULATOR:
             
         # Write the asm file
         file_name_asm = kernel_path + FILENAME_INSTR + "_asm" + version + EXT
+        print("Creating file: " + file_name_asm)
         with open(file_name_asm, 'w+') as csvfile:
             writer = csv.writer(csvfile)
 
@@ -447,5 +467,8 @@ class SIMULATOR:
                 for rc in range(CGRA_ROWS):
                     elems_to_write.append(RCs_instr_asm[rc][i])
                 writer.writerow(elems_to_write)
+        
+        
+        
     
         

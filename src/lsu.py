@@ -449,6 +449,9 @@ class LSU:
         # This LSU instruction
         lsu_hex = self.imem.get_word_in_hex(pc)
         rf_wsel, rf_we, alu_op, muxb_sel, muxa_sel, vwr_sel_shuf_op, mem_op = LSU_IMEM_WORD(hex_word=lsu_hex).decode_word()
+        # IMPORTANT: First mem op
+        # MEM op
+        self.runMem(mem_op, vwr_sel_shuf_op, vwr2a, col)
         # Get muxes value
         muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel)
         muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel)
@@ -457,11 +460,9 @@ class LSU:
         # Write result locally
         if rf_we == 1:
             self.regs[rf_wsel] = self.alu.newRes
-        # MEM op
-        self.runMem(mem_op, vwr_sel_shuf_op, vwr2a, col)
         
         # ---------- Print something -----------
-        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, alu_srf_write, srf_we) + " --> " + str(self.alu.newRes))
+        print(self.__class__.__name__ + ": " + self.imem.get_instruction_asm(pc, srf_sel, alu_srf_write, srf_we) + " --> ALU res = " + str(self.alu.newRes))
 
     def parseDestArith(self, rd, instr):
         # Define the regular expression pattern

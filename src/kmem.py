@@ -10,23 +10,23 @@ from .spm import SPM_NLINES
 KER_CONF_N_REG = 16
 
 # Widths of instructions of each specialized slot in bits
-KER_CONF_IMEM_WIDTH = 21
+KMEM_IMEM_WIDTH = 21
 
 # KERNEL CONFIGURATION #
 class KMEM_IMEM:
     '''Kernel memory: Keeps track of which kernels are loaded into the IMEM of VWR2A'''
     def __init__(self):
-        self.IMEM = np.zeros(KER_CONF_N_REG,dtype="S{0}".format(KER_CONF_IMEM_WIDTH))
+        self.IMEM = np.zeros(KER_CONF_N_REG,dtype="S{0}".format(KMEM_IMEM_WIDTH))
         # Initialize kernel memory with zeros
         for i, instruction in enumerate(self.IMEM):
-            self.IMEM[i] = np.binary_repr(0,width=KER_CONF_IMEM_WIDTH)
+            self.IMEM[i] = np.binary_repr(0,width=KMEM_IMEM_WIDTH)
         
     
     def set_word(self, kmem_word, pos):
         '''Set the IMEM index at integer pos to the binary kmem word'''
         assert (pos>0), "Kernel word 0 is reserved; need to pick a position >0 and <16"
         
-        self.IMEM[pos] = np.binary_repr(kmem_word,width=KER_CONF_IMEM_WIDTH)
+        self.IMEM[pos] = np.binary_repr(kmem_word,width=KMEM_IMEM_WIDTH)
     
     def set_params(self, num_instructions_per_col=0, imem_add_start=0, col_one_hot=1, srf_spm_addres=0, pos=1):
         '''Set the IMEM index at integer pos to the configuration parameters.
@@ -38,8 +38,7 @@ class KMEM_IMEM:
 
         # Note: The number of instructions encoded in the kmem word is always one less than the actual number of instructions
         n_instr_kmem = num_instructions_per_col-1
-        
-        kmem_word = KMEM_WORD(n_instr_kmem, imem_add_start, col_one_hot, srf_spm_addres)
+        kmem_word = KMEM_WORD(num_instructions=n_instr_kmem, imem_add_start=imem_add_start, column_usage=col_one_hot, srf_spm_addres=srf_spm_addres)
         self.IMEM[pos] = kmem_word.get_word()
     
     def get_params(self, pos):
@@ -72,7 +71,7 @@ class KMEM_IMEM:
 
     
 class KMEM_WORD:
-    def __init__(self, num_instructions=0, imem_add_start=0, column_usage=0, srf_spm_addres=0):
+    def __init__(self, hex_word=None, num_instructions=0, imem_add_start=0, column_usage=0, srf_spm_addres=0):
         '''Generate a binary kmem instruction word from its configuration paramerers:
         
            -   num_instructions: number of IMEM lines the kernel occupies (0 to 63)
@@ -84,11 +83,23 @@ class KMEM_WORD:
            -   srf_spm_address: address of SPM that SRF occupies (0 to 15)
         
         '''
-        self.num_instructions = np.binary_repr(num_instructions, width=6)
-        self.imem_add_start = np.binary_repr(imem_add_start, width=9)
-        self.column_usage = np.binary_repr(column_usage,width=2)
-        self.srf_spm_addres = np.binary_repr(srf_spm_addres,4)
-        self.word = "".join((self.srf_spm_addres,self.column_usage,self.imem_add_start,self.num_instructions))
+        if hex_word == None:
+            self.num_instructions = np.binary_repr(num_instructions, width=6)
+            self.imem_add_start = np.binary_repr(imem_add_start, width=9)
+            self.column_usage = np.binary_repr(column_usage,width=2)
+            self.srf_spm_addres = np.binary_repr(srf_spm_addres,4)
+            self.word = "".join((self.srf_spm_addres,self.column_usage,self.imem_add_start,self.num_instructions))
+        else:
+            decimal_int = int(hex_word, 16)
+            binary_number = bin(decimal_int)[2:] # Removing the '0b' prefix
+            # Extend binary number to KMEM_IMEM_WIDTH bits
+            extended_binary = binary_number.zfill(KMEM_IMEM_WIDTH)
+
+            self.num_instructions = extended_binary[15:21] # 6 bits
+            self.imem_add_start = extended_binary[6:15] # 9 bit
+            self.column_usage = extended_binary[4:6] # 2 bits
+            self.srf_spm_addres = extended_binary[:4] # 4 bits
+            self.word = extended_binary
     
     def get_word(self):
         return self.word
