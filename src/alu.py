@@ -93,11 +93,11 @@ class ALU():
         raise Exception("Half precision div not supported.")
 
     def mul_fp(self, val1, val2):
-        print("Floating point mul to be done.")
+        print("Fixed point mul to be done.")
         self.newRes = 0
 
     def div_fp(self, val1, val2):
-        raise Exception("Floating point div not supported.")
+        raise Exception("Fixed point div not supported.")
 
     def sfga(self, val1, val2, sign_flag):
         if sign_flag : self.newRes = val1
@@ -119,3 +119,6 @@ class ALU():
         shift_n = val2 & mask
         interm_result = (c_int32(val1).value & MAX_32b)
         self.newRes = c_int32(interm_result >> shift_n).value
+    
+    def mac(self, val1, val2, val3):
+        self.newRes = c_int32(val1 * val2).value & MAX_32b + val3

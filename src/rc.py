@@ -37,6 +37,7 @@ class RC_ALU_OPS(int, Enum):
     INB_ZF_INA = 12
     FXP_MUL = 13
     FXP_DIV = 14
+    MAC = 15
 
 class RC_MUX_SEL(int, Enum):
     '''Input A and B to RC ALU'''
@@ -304,7 +305,7 @@ class RC_IMEM_WORD:
         return rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel
     
 class RC:
-    rc_arith_ops   = {  'SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FP','DIV.FP' }
+    rc_arith_ops   = {  'MAC','SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FP','DIV.FP' }
     rc_flag_ops     = { 'SFGA','ZFGA' }
     rc_nop_ops      = { 'NOP' }
 
@@ -359,7 +360,7 @@ class RC:
             raise Exception(self.__class__.__name__ + ": Mux value not recognized")
         return muxValue
 
-    def runAlu(self, alu_op, muxa_val, muxb_val, half_precision, muxf_sel):
+    def runAlu(self, alu_op, muxa_val, muxb_val, half_precision, muxf_sel, vwr_c):
         if alu_op == 0: # NOP
             self.alu.nop()
         elif alu_op == 1: # SADD
@@ -407,6 +408,8 @@ class RC:
              self.alu.mul_fp(muxa_val, muxb_val)
         elif alu_op == 14: # FP_DIV
              self.alu.div_fp(muxa_val, muxb_val)
+        elif alu_op == 15: # MAC
+             self.alu.mac(muxa_val, muxb_val, vwr_c)
         else:
             raise Exception(self.__class__.__name__ + ": ALU op not recognized")
                 
@@ -420,7 +423,16 @@ class RC:
         muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel, row)
         muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel, row)
         # ALU op
-        self.runAlu(alu_op, muxa_val, muxb_val, op_mode, muxf_sel)
+        # --------------- 
+        # For MAC v0 
+        mxcu_r0 = vwr2a.mxcus[col].regs[0] # VWR_IDX
+        vwr_offset = int(SPM_NWORDS/CGRA_ROWS)*row
+        mxcu_r7 = vwr2a.mxcus[col].regs[7] # MASK_VWR_C
+        slice_idx = mxcu_r0 & mxcu_r7
+        vwr_c = vwr2a.vwrs[col][2].getIdx(slice_idx + vwr_offset)
+        # -----------------------
+
+        self.runAlu(alu_op, muxa_val, muxb_val, op_mode, muxf_sel, vwr_c)
         # Write result locally
         if rf_we == 1:
             self.regs[rf_wsel] = self.alu.newRes
