@@ -264,9 +264,9 @@ class RC_IMEM_WORD:
             rc_asm = alu_asm
         elif alu_asm == "FXP_MUL" or alu_asm == "FXP_DIV":
             if alu_asm == "FXP_MUL":
-                alu_asm = "MUL.FP"
+                alu_asm = "MUL.FXP"
             else:
-                alu_asm = "DIV.FP"
+                alu_asm = "DIV.FXP"
             rc_asm = alu_asm + " " + dest + ", " + muxa_asm + ", " + muxb_asm
         else:
             rc_asm = alu_asm + precision + " " + dest + ", " + muxa_asm + ", " + muxb_asm
@@ -305,7 +305,7 @@ class RC_IMEM_WORD:
         return rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel
     
 class RC:
-    rc_arith_ops   = {  'MAC','SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FP','DIV.FP' }
+    rc_arith_ops   = {  'MAC','SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FXP','DIV.FXP' }
     rc_flag_ops     = { 'SFGA','ZFGA' }
     rc_nop_ops      = { 'NOP' }
 
@@ -571,10 +571,10 @@ class RC:
             
             if '.H' in op:
                 raise Exception("Half precision not supported yet.")
-            elif '.FP' in op:
-                if op == "DIV.FP":
+            elif '.FXP' in op:
+                if op == "DIV.FXP":
                     raise Exception("Float point division not supported yet.")
-                if op == "MUL.FP":
+                if op == "MUL.FXP":
                     alu_op = RC_ALU_OPS["FXP_MUL"]
             else:
                 alu_op = RC_ALU_OPS[op]
