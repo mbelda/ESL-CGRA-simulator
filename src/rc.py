@@ -239,14 +239,8 @@ class RC_IMEM_WORD:
             if dest != "":
                 dest += ", "
             dest += "SRF(" + str(srf_sel) + ")"
-        
-        if dest != "":
-            dest += ", "
-        dest += "ROUT"
 
         # ALU ops
-        if alu_op == 15: # Duplicated
-            alu_op = 0 # NOP
         for op in RC_ALU_OPS:
             if op.value == alu_op:
                 alu_asm = op.name
