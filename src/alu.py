@@ -71,7 +71,7 @@ class ALU():
         high_res = (val1_high + val2_high) & 0xFFFF
         low_res = (val1_low + val2_low) & 0xFFFF
 
-        return (high_res << 16) | low_res
+        self.newRes = (high_res << 16) | low_res
 
     def ssubh(self,  val1, val2 ):
         val1_high = (val1 >> 16) & 0xFFFF  
@@ -86,7 +86,7 @@ class ALU():
 
         #print("SUB.H: " + str(val1) + " , " + str(val2) + " = " + str(res))
 
-        return res
+        self.newRes = res
 
     def sllh(self,  val1, val2 ):
         raise Exception("Half precision sll not supported.")
@@ -115,7 +115,7 @@ class ALU():
         high_res = (val1_high * val2_high) & 0xFFFF
         low_res = (val1_low * val2_low) & 0xFFFF
 
-        return (high_res << 16) | low_res
+        self.newRes = (high_res << 16) | low_res
 
     def sdivh(self, val1, val2):
         raise Exception("Half precision div not supported.")
@@ -165,4 +165,4 @@ class ALU():
         high_res = (high_res + val3_high) & 0xFFFF
         low_res = (low_res + val3_low) & 0xFFFF
 
-        return (high_res << 16) | low_res
+        self.newRes = (high_res << 16) | low_res
