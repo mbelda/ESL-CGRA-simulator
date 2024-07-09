@@ -63,10 +63,30 @@ class ALU():
         self.newRes = c_int32(val1 / val2).value
     
     def saddh(self,  val1, val2 ):
-        raise Exception("Half precision add not supported.")
+        val1_high = (val1 >> 16) & 0xFFFF  
+        val1_low = val1 & 0xFFFF           
+        val2_high = (val2 >> 16) & 0xFFFF  
+        val2_low = val2 & 0xFFFF           
+
+        high_res = (val1_high + val2_high) & 0xFFFF
+        low_res = (val1_low + val2_low) & 0xFFFF
+
+        return (high_res << 16) | low_res
 
     def ssubh(self,  val1, val2 ):
-        raise Exception("Half precision sub not supported.")
+        val1_high = (val1 >> 16) & 0xFFFF  
+        val1_low = val1 & 0xFFFF           
+        val2_high = (val2 >> 16) & 0xFFFF  
+        val2_low = val2 & 0xFFFF           
+
+        high_res = (val1_high - val2_high) & 0xFFFF
+        low_res = (val1_low - val2_low) & 0xFFFF
+
+        res = (high_res << 16) | low_res
+
+        #print("SUB.H: " + str(val1) + " , " + str(val2) + " = " + str(res))
+
+        return res
 
     def sllh(self,  val1, val2 ):
         raise Exception("Half precision sll not supported.")
@@ -87,7 +107,15 @@ class ALU():
         raise Exception("Half precision lxor not supported.")
 
     def smulh(self, val1, val2):
-        raise Exception("Half precision mul not supported.")
+        val1_high = (val1 >> 16) & 0xFFFF  
+        val1_low = val1 & 0xFFFF           
+        val2_high = (val2 >> 16) & 0xFFFF  
+        val2_low = val2 & 0xFFFF           
+
+        high_res = (val1_high * val2_high) & 0xFFFF
+        low_res = (val1_low * val2_low) & 0xFFFF
+
+        return (high_res << 16) | low_res
 
     def sdivh(self, val1, val2):
         raise Exception("Half precision div not supported.")
@@ -122,3 +150,19 @@ class ALU():
     
     def mac(self, val1, val2, val3):
         self.newRes = c_int32(val1 * val2).value & MAX_32b + val3
+
+    def mach(self, val1, val2, val3):
+        val1_high = (val1 >> 16) & 0xFFFF  
+        val1_low = val1 & 0xFFFF           
+        val2_high = (val2 >> 16) & 0xFFFF  
+        val2_low = val2 & 0xFFFF
+        val3_high = (val3 >> 16) & 0xFFFF  
+        val3_low = val3 & 0xFFFF             
+
+        high_res = (val1_high * val2_high) & 0xFFFF
+        low_res = (val1_low * val2_low) & 0xFFFF
+
+        high_res = (high_res + val3_high) & 0xFFFF
+        low_res = (low_res + val3_low) & 0xFFFF
+
+        return (high_res << 16) | low_res

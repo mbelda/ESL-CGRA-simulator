@@ -162,7 +162,7 @@ class RC_IMEM_WORD:
            -   rf_we: Enable writing to aforementioned register
            -   muxf_sel: Select a source for the “flag” parameter that is used to compute the zero and sign flags for some ALU operations
            -   alu_op: Perform one of the ALU operations listed in the RC_ALU_OPS enum
-           -   op_mode: Constant 0 for now
+           -   op_mode: 0 if 32-bit precision, 1 if 16-bit precision
            -   muxb_sel: Select input B to ALU (see RC_MUX_SEL enum for options)
            -   muxa_sel: Select input A to ALU (see RC_MUX_SEL enum for options)
         
@@ -305,7 +305,7 @@ class RC_IMEM_WORD:
         return rf_wsel, rf_we, muxf_sel, alu_op, op_mode, muxb_sel, muxa_sel
     
 class RC:
-    rc_arith_ops   = {  'MAC','SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FXP','DIV.FXP' }
+    rc_arith_ops    = { 'MAC','SADD','SSUB','SMUL','SDIV','SLL','SRL','SRA','LAND','LOR', 'LXOR', 'SADD.H','SSUB.H','SMUL.H','SDIV.H','SLL.H','SRL.H','SRA.H','LAND.H','LOR.H','MUL.FXP','DIV.FXP', 'MAC.H' }
     rc_flag_ops     = { 'SFGA','ZFGA' }
     rc_nop_ops      = { 'NOP' }
 
@@ -360,7 +360,7 @@ class RC:
             raise Exception(self.__class__.__name__ + ": Mux value not recognized")
         return muxValue
 
-    def runAlu(self, alu_op, muxa_val, muxb_val, half_precision, muxf_sel, vwr_c):
+    def runAlu(self, alu_op, muxa_val, muxb_val, half_precision, muxf_sel):
         if alu_op == 0: # NOP
             self.alu.nop()
         elif alu_op == 1: # SADD
@@ -409,7 +409,8 @@ class RC:
         elif alu_op == 14: # FP_DIV
              self.alu.div_fp(muxa_val, muxb_val)
         elif alu_op == 15: # MAC
-             self.alu.mac(muxa_val, muxb_val, vwr_c)
+            if half_precision:  self.alu.mach(muxa_val, muxb_val, self.regs[0])
+            else: self.alu.mac(muxa_val, muxb_val, self.regs[0])
         else:
             raise Exception(self.__class__.__name__ + ": ALU op not recognized")
                 
@@ -423,16 +424,7 @@ class RC:
         muxa_val = self.getMuxValue(muxa_sel, vwr2a, col, srf_sel, row)
         muxb_val = self.getMuxValue(muxb_sel, vwr2a, col, srf_sel, row)
         # ALU op
-        # --------------- 
-        # For MAC v0 
-        mxcu_r0 = vwr2a.mxcus[col].regs[0] # VWR_IDX
-        vwr_offset = int(SPM_NWORDS/CGRA_ROWS)*row
-        mxcu_r7 = vwr2a.mxcus[col].regs[7] # MASK_VWR_C
-        slice_idx = mxcu_r0 & mxcu_r7
-        vwr_c = vwr2a.vwrs[col][2].getIdx(slice_idx + vwr_offset)
-        # -----------------------
-
-        self.runAlu(alu_op, muxa_val, muxb_val, op_mode, muxf_sel, vwr_c)
+        self.runAlu(alu_op, muxa_val, muxb_val, op_mode, muxf_sel)
         # Write result locally
         if rf_we == 1:
             self.regs[rf_wsel] = self.alu.newRes
@@ -566,11 +558,12 @@ class RC:
             op      = split_instr[0]
         except:
             op      = split_instr
-
+        
         if op in self.rc_arith_ops:
-            
+            half_precision = 0
             if '.H' in op:
-                raise Exception("Half precision not supported yet.")
+                half_precision = 1
+                alu_op = RC_ALU_OPS[op[:-2]]
             elif '.FXP' in op:
                 if op == "DIV.FXP":
                     raise Exception("Float point division not supported yet.")
@@ -644,11 +637,10 @@ class RC:
                     rf_we = 1
                     rf_wsel = dest
 
-            op_mode = 0
             muxf_sel=RC_MUXF_SEL.OWN
 
             # Return read and write srf indexes and the flag to write on a vwr
-            word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=op_mode, muxb_sel=muxB, muxa_sel=muxA)
+            word = RC_IMEM_WORD(rf_wsel=rf_wsel, rf_we=rf_we, muxf_sel=muxf_sel, alu_op=alu_op, op_mode=half_precision, muxb_sel=muxB, muxa_sel=muxA)
             return srf_read_index, srf_str_index, vwr_str, word
         
         if op in self.rc_nop_ops:
