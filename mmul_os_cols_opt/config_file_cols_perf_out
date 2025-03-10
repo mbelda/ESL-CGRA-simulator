@@ -1,0 +1,4 @@
+nInstructions = 26
+nKernel = 1
+start_addr = 0
+nCols = 4
