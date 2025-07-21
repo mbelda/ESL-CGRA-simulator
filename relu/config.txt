@@ -1,0 +1,4 @@
+    n_cols = 4
+    start_addr = 0
+    n_instructions = 12
+    n_kernel = 1
