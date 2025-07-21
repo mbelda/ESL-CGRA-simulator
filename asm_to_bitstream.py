@@ -189,7 +189,7 @@ def parse_kernel_config(config_file):
 
 def nCols_to_one_hot(x):
     if x < 1 or x > 4:
-        raise ValueError("nCols debe estar entre 1 y 4")
+        raise ValueError("n_cols debe estar entre 1 y 4")
     return (1 << x) - 1  # Desplazar 1 a la posición de x y restar 1 para que se pongan los bits a la derecha como 1
 
 
@@ -207,43 +207,60 @@ def main():
     
     # Procesar configuración del kernel
     config = parse_kernel_config(config_file)
-    nCols = config.get("nCols", 0)  # Suponiendo que el archivo de configuración tiene "nCols"
-    cols_one_hot = nCols_to_one_hot(nCols)  # Convertir a codificación one-hot
-    start_addr = config.get("start_addr", 0)
-    n_instructions = config.get("nInstructions", 0)
-    n_kernel = config.get("nKernel", 0)
+    n_kernel = config.get("n_kernel", 0)
+
+    n_cols = config.get("n_cols", 0)  # Número de columnas activas
+    cols_one_hot = nCols_to_one_hot(n_cols)  # Debe devolver un número entre 0x0 y 0xF
+
+    start_addr = config.get("start_addr", 0)         # Debe ser un número entre 0 y 127
+    n_instructions = config.get("n_instructions", 0)  # Debe ser un número entre 0 y 31
+
+
+    # Asegurarse de que están dentro de rango
+    cols_one_hot &= 0xF
+    start_addr &= 0x7F
+    n_instructions &= 0x1F
+
+    # Construcción de la palabra de configuración (16 bits)
+    config_word = (cols_one_hot << 12) | (start_addr << 5) | n_instructions
+
+    # Mostrar como hexadecimal de 4 dígitos (rellenado con ceros si hace falta)
+    hex_word = f"0x{config_word:04X}"
     
     # Construcción de la palabra de configuración (16 bits)
     config_word = ((cols_one_hot & 0xF) << 12) | ((start_addr & 0x7F) << 5) | (n_instructions & 0x1F)
+    print(config_word)
 
     # Lectura del archivo de instrucciones csv
     with open(input_file, "r") as f:
         reader = csv.reader(f)
-        hex_instructions = []
-
+        hex_instructions_rcs_by_rows = [[] for _ in range(N_COLS_CGRA*N_ROWS_CGRA)]
+        nrow = 0
         for row in reader:
             # Saltar las líneas que contienen números (bloques de instrucciones)
             if row and row[0].isdigit():
                 continue
-
-            for instruction in row:  # Procesar las 4 instrucciones por línea
+            
+            col = 0
+            for instruction in row:  # Procesar las N_COLS_CGRA instrucciones por línea
                 if not instruction.strip() or instruction.strip().startswith("#"):  # Ignorar vacíos y comentarios
                     continue
                 try:
-                    hex_instructions.append(asm_to_hex_instruction(instruction.strip()))
+                    hex_instructions_rcs_by_rows[nrow*N_COLS_CGRA + col].append(asm_to_hex_instruction(instruction.strip()))
+                    col = (col + 1) % N_COLS_CGRA
                 except ValueError as e:
                     print(f"Error en instrucción '{instruction}': {e}")
+            nrow = (nrow + 1) % N_ROWS_CGRA
 
-    # Reorder for easy writting
+    # Group for easy writting: It must be written by columns. Every instructions of an rc after the next one.
+    # So, every instruction for RC00, then for RC10...
     hex_for_bitstream = []
-    for c in range(N_COLS_CGRA):
-        for r in range(N_ROWS_CGRA):
-            for n in range(n_instructions+1):
-                idx = n*16 + r*N_COLS_CGRA + c
-                hex_for_bitstream.append(hex_instructions[idx])
+    for col in range(N_COLS_CGRA):
+        for row in range(N_ROWS_CGRA):
+            index = row * 4 + col
+            hex_for_bitstream.extend(hex_instructions_rcs_by_rows[index])
 
-    for _ in range(N_MAX_INSTR):
-        hex_for_bitstream.append("0")
+    hex_for_bitstream.extend(["0"] * (N_MAX_INSTR - len(hex_for_bitstream)))
 
 
     with open(output_file, "w") as out_f:

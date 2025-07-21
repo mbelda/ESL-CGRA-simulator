@@ -1,0 +1,135 @@
+0,,,
+"LWD R0, 4","LWD R0, 4","LWD R0, 4","LWD R0, 4"
+"LWD R0, 4","LWD R0, 4","LWD R0, 4","LWD R0, 4"
+"LWD R0, 4","LWD R0, 4","LWD R0, 4","LWD R0, 4"
+"LWD R0, 4","LWD R0, 4","LWD R0, 4","LWD R0, 4"
+1,,,
+"SADD R1, ZERO, ZERO","LWD R1, 4","LWD R1, 4","LWD R1, 4"
+"LWD R1, 4","LWD R1, 4","LWD R1, 4","LWD R1, 4"
+"LWD R1, 4","LWD R1, 4","LWD R1, 4","LWD R1, 4"
+"LWD R1, 4","LWD R1, 4","LWD R1, 4","LWD R1, 4"
+2,,,
+"NOP","LWD R2, 4","LWD R2, 4","LWD R2, 4"
+"LWD R2, 4","LWD R2, 4","LWD R2, 4","LWD R2, 4"
+"LWD R2, 4","LWD R2, 4","LWD R2, 4","LWD R2, 4"
+"LWD R2, 4","LWD R2, 4","LWD R2, 4","LWD R2, 4"
+3,,,
+"BGE R1, R0, 12","NOP","NOP","NOP"
+"NOP","NOP","NOP","NOP"
+"NOP","NOP","NOP","NOP"
+"NOP","NOP",NOP,"NOP"
+4,,,
+"SADD R1, R1, 1","LWI R3, R0","LWI R3, R0","LWI R3, R0"
+"LWI R3, R0","LWI R3, R0","LWI R3, R0","LWI R3, R0"
+"LWI R3, R0","LWI R3, R0","LWI R3, R0","LWI R3, R0"
+"LWI R3, R0","LWI R3, R0","LWI R3, R0","LWI R3, R0"
+5,,,
+"NOP","LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1"
+"LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1"
+"LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1"
+"LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1","LWI ROUT, R1"
+6,,,
+"NOP","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3"
+"SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3"
+"SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3"
+"SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3","SADD ROUT, ROUT, R3"
+7,,,
+"NOP","SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2"
+"SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2"
+"SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2"
+"SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2","SWI ROUT, R2"
+8,,,
+"NOP","SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60"
+"SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60"
+"SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60"
+"SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60","SADD R0, R0, 60"
+9,,,
+"NOP","SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60"
+"SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60"
+"SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60"
+"SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60","SADD R1, R1, 60"
+10,,,
+"NOP","SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60"
+"SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60"
+"SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60"
+"SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60","SADD R2, R2, 60"
+11,,,
+"BEQ R0, R0, 3","NOP",NOP,"NOP"
+"NOP",NOP,"NOP",NOP
+NOP,"NOP",NOP,"NOP"
+"NOP",NOP,"NOP",NOP
+12,,,
+"EXIT","NOP","NOP","NOP"
+"NOP","NOP","NOP","NOP"
+"NOP","NOP","NOP","NOP"
+"NOP","NOP","NOP","NOP"
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,
+,,,

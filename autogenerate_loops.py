@@ -1,0 +1,147 @@
+import sys
+import csv
+import os
+
+N_ROWS_CGRA = 4
+N_COLS_CGRA = 4
+
+def generate_loop_controler(nopsConfig, endLoopPC, increment, nopsBodyLoop, startPc=0, nItReg="R0", counterReg="R1"):
+    """
+    Generates the assembly instructions for a loop controller for a given configuration.
+    Input parameters:
+        - nopsConfig: The number of operations on configuration phase
+        - endLoopPC: The end address of the loop
+        - increment: The increment value for the counter
+        - nopsBodyLoop: The number of operations on the body loop
+        - startPc: The start address of the loop (default is 0)
+        - nItReg: The register to load the number of iterations (default is R0)
+        - counterReg: The register to store the counter (default is R1)
+    Output:
+        - instructions: The list of assembly instructions for the loop controller
+    """
+    instructions = []
+    instructions.append(f"LWD {nItReg}, 4")                                            # 1. Load the number of iterations
+    instructions.append(f"SADD {counterReg}, 0, 0")                                 # 2. Initialize the counter to 0
+    for _ in range(nopsConfig-2):
+        instructions.append(f"NOP")                                                 # 3. NOP until the rest of RCs finish configuration
+    instructions.append(f"BEQ {nItReg}, {counterReg}, {endLoopPC}")                # 4. Branch condition
+    instructions.append(f"SADD {counterReg}, {counterReg}, {increment}")            # 5. Increment the counter
+    for _ in range(nopsBodyLoop-1):
+        instructions.append(f"NOP")                                                 # 6. NOP until the rest of RCs finish body loop
+    instructions.append(f"BEQ {nItReg}, {nItReg}, " + str(startPc+nopsConfig))    # 7. Jump to the condition of the loop
+    return instructions
+
+
+def generate_loop_body(operation, offset=4):
+    """
+    Generates the assembly instructions for the body of a loop
+    with two vectors as an input and one vector as output.
+    Input parameters:
+        - operation: The operation to be performed on the vectors (e.g., SADD, SSUB, etc.)
+        - offset: The offset to be added to the address of the vectors. By default, is 4.
+    Output:
+        - instructions: The list of assembly instructions for the loop body
+        - nopsConfig: The number of operations on configuration phase
+        - nopsBodyLoop: The number of operations on the body loop
+        - nIntructionsLoop: The total number of instructions
+    """
+    instructions = []
+    instructions.append(f"LWD R0, 4")                       # 1. Load address
+    instructions.append(f"LWD R1, 4")          
+    instructions.append(f"LWD R2, 4")
+    nopsConfig = 3
+    instructions.append(f"NOP")                          # 2. Wait for loop condition check
+    instructions.append(f"LWI R3, R0")                   # 3. Load data
+    instructions.append(f"LWI ROUT, R1")
+    instructions.append(f"{operation} ROUT, ROUT, R3")  # 4. Perform operation
+    instructions.append(f"SWI ROUT, R2")                 # 5. Store result
+    instructions.append(f"SADD R0, R0, {offset}")       # 6. Update vector address
+    instructions.append(f"SADD R1, R1, {offset}")   
+    instructions.append(f"SADD R2, R2, {offset}")
+    nopsBodyLoop = 7   
+    instructions.append(f"NOP")                          # 7. Wait for jump
+    nIntructionsLoop = len(instructions)
+    
+    return instructions, nopsConfig, nopsBodyLoop, nIntructionsLoop
+
+def generate_vector_addition():
+    """
+    Generates the assembly instructions for a vector addition operation.
+    Supposing vectors type are integer and the operation is SADD.
+    Output:
+        - asm_code: The list of lists of assembly instructions for each RC to perform the vector addition
+        - vectorMultipleof: The vector should be a multiple of this number
+    """
+    
+    nRCsController = 1 # Number of RCs used to control the loops = number of loops
+    vectorMultipleof = N_ROWS_CGRA*N_COLS_CGRA-nRCsController
+    offset = 4*vectorMultipleof # Assuming 4 bytes per element and 15 computing RCs
+
+    computing_instr, nopsConfig, nopsBodyLoop, nInstrLoop = generate_loop_body("SADD", offset)
+    loopCounterIncrement = 1
+    control_instr = generate_loop_controler(nopsConfig, nInstrLoop, loopCounterIncrement, nopsBodyLoop)
+
+    # Generate the final assembly code
+    asm_code = []
+    for _ in range(nRCsController):
+        asm_code.append(control_instr.copy())
+    for _ in range(N_ROWS_CGRA*N_COLS_CGRA-nRCsController):
+        asm_code.append(computing_instr.copy())
+    
+    # Add exit instrucction
+    asm_code[0].append("EXIT")
+    for rc in range(1, N_COLS_CGRA*N_ROWS_CGRA):
+        asm_code[rc].append("NOP")
+
+    
+    
+    return asm_code, vectorMultipleof
+
+
+def main():
+
+    asm_instructions, vectorMultipleof = generate_vector_addition()
+
+    # Generate csv file with instructions
+    csv_file = "instructions_vector_addition_autogenerated.csv"
+    """
+      The output format of the csv is:
+        number of instruction (i)
+        asm_instructions[0][i], asm_instructions[1][i], ..., asm_instructions[CGRA_N_COLS-1][i]
+        asm_instructions[CGRA_N_COLS][i], asm_instructions[CGRA_N_COLS+1][i], ..., asm_instructions[CGRA_N_COLS+CGRA_N_COLS-1][i]
+        ...
+        asm_instructions[CGRA_N_ROWS*CGRA_N_COLS][i], asm_instructions[CGRA_N_ROWS*CGRA_N_COLS+1][i], ..., asm_instructions[CGRA_N_ROWS*CGRA_N_COLS+CGRA_N_COLS-1][i]
+    """
+    
+    n_rcs = N_ROWS_CGRA * N_COLS_CGRA
+
+    # Comprobación: todas las RCs deben tener el mismo número de instrucciones
+    instr_counts = [len(rc) for rc in asm_instructions]
+    if any(count != instr_counts[0] for count in instr_counts):
+        raise ValueError("All RCs must have the same number of instructions. Check loop body and controller lengths.")
+
+    n_cycles = instr_counts[0]
+
+
+    # Escribimos el CSV con formato por ciclo (una fila por fila de RCs)
+    with open(csv_file, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        for cycle in range(n_cycles):
+            # Fila de encabezado de ciclo
+            writer.writerow([str(cycle)] + [""] * (N_COLS_CGRA - 1))
+
+            # Filas de instrucciones por fila del CGRA
+            for row in range(N_ROWS_CGRA):
+                start = row * N_COLS_CGRA
+                end = start + N_COLS_CGRA
+                row_instrs = [asm_instructions[rc][cycle] for rc in range(start, end)]
+                writer.writerow(row_instrs)
+
+
+    print(f"CSV file '{csv_file}' generated with assembly instructions.")
+    print(f"Vector should be a multiple of {vectorMultipleof}.")
+
+    return
+
+if __name__ == "__main__":
+    main()
