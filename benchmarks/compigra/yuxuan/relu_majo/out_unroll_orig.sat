@@ -1,0 +1,289 @@
+T = 0
+NOP                      
+NOP                      
+LWD ROUT, arg1           
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+SADD R0, ZERO ZERO       
+NOP                      
+T = 1
+NOP                      
+LWD R0, arg0             
+LWI ROUT, ROUT           
+LWD R0, arg0             
+LWD R0, arg0             
+NOP                      
+LWD R0, arg0             
+LWD R0, arg0             
+LWD R0, arg0             
+LWD R0, arg0             
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+SADD ROUT, ZERO ZERO     
+NOP                      
+T = 2
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+SRA R1, RCT 2            
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+T = 3
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+BGE RCB,RCT, 16          
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+T = 4
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+SADD ROUT, R0 ZERO       
+NOP                      
+T = 5
+NOP                      
+NOP                      
+SMUL ROUT, RCT 4         
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+SMUL ROUT, RCB 4         
+NOP                      
+NOP                      
+SMUL ROUT, RCR 4         
+NOP                      
+SMUL ROUT, RCL 4         
+T = 6
+NOP                      
+NOP                      
+SADD ROUT, RCT 1         
+SADD ROUT, RCL 3         
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+SADD ROUT, RCB 1         
+SMUL ROUT, RCB 4         
+SMUL ROUT, RCL 4         
+SADD ROUT, RCL 2         
+NOP                      
+NOP                      
+SMUL ROUT, RCL 4         
+T = 7
+SMUL ROUT, RCT 4         
+NOP                      
+NOP                      
+SADD ROUT, RCT 2         
+NOP                      
+NOP                      
+BGE RCT,R1, 12           
+SMUL ROUT, RCT 4         
+SADD ROUT, R0,RCL        
+NOP                      
+SMUL ROUT, RCL 4         
+SADD ROUT, RCL 1         
+NOP                      
+SMUL ROUT, RCR 4         
+NOP                      
+SMUL ROUT, RCL 4         
+T = 8
+SMUL ROUT, RCL 4         
+SADD ROUT, RCT 3         
+NOP                      
+SADD ROUT, R0,RCR        
+LWI ROUT, RCB            
+NOP                      
+NOP                      
+SADD ROUT, R0,ROUT       
+NOP                      
+SADD ROUT, R0,RCR        
+SMUL ROUT, RCR 4         
+NOP                      
+NOP                      
+NOP                      
+SADD ROUT, RCB ZERO      
+NOP                      
+T = 9
+SMUL ROUT, RCR 4         
+NOP                      
+SMUL ROUT, RCT 4         
+LWI ROUT, RCB            
+SADD R1, R0,RCT          
+BSFA ROUT, ZERO,RCL, RCL 
+SADD ROUT, R0,RCB        
+LWI ROUT, RCT            
+LWI ROUT, RCR            
+NOP                      
+SMUL ROUT, RCB 4         
+SMUL ROUT, RCB 4         
+NOP                      
+SMUL ROUT, RCR 4         
+NOP                      
+SMUL ROUT, RCL 4         
+T = 10
+BSFA ROUT, ZERO,RCL, RCL 
+SADD ROUT, R0,RCL        
+SADD ROUT, RCT 1         
+SADD ROUT, RCL 3         
+BSFA ROUT, ZERO,RCB, RCB 
+NOP                      
+NOP                      
+BSFA ROUT, ZERO,ROUT, ROUT
+SADD ROUT, R0,RCL        
+SADD ROUT, RCB 1         
+SMUL ROUT, RCB 4         
+SMUL ROUT, RCL 4         
+SADD ROUT, RCL 2         
+NOP                      
+NOP                      
+SMUL ROUT, RCL 4         
+T = 11
+SMUL ROUT, RCT 4         
+SWI RCL,ROUT             
+NOP                      
+SADD ROUT, RCT 2         
+SWI RCL,R1               
+SWI RCL,RCR              
+BLT RCT,R1, 8            
+SMUL ROUT, RCT 4         
+SADD ROUT, R0,RCL        
+SWI RCT,RCL              
+SMUL ROUT, RCL 4         
+SADD ROUT, RCL 1         
+NOP                      
+SMUL ROUT, RCR 4         
+NOP                      
+SMUL ROUT, RCL 4         
+T = 12
+SMUL ROUT, RCL 4         
+SADD ROUT, RCT 3         
+NOP                      
+SADD ROUT, R0,RCR        
+LWI ROUT, RCB            
+NOP                      
+NOP                      
+SADD ROUT, R0,ROUT       
+NOP                      
+SADD ROUT, R0,RCR        
+SMUL ROUT, RCR 4         
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+T = 13
+SMUL ROUT, RCR 4         
+NOP                      
+NOP                      
+LWI ROUT, RCB            
+SADD R0, R0,RCT          
+BSFA ROUT, ZERO,RCL, RCL 
+SADD ROUT, R0,RCB        
+LWI R0, RCT              
+LWI ROUT, RCR            
+NOP                      
+NOP                      
+SMUL ROUT, RCB 4         
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+T = 14
+BSFA ROUT, ZERO,RCL, RCL 
+SADD R0, R0,RCL          
+NOP                      
+NOP                      
+BSFA ROUT, ZERO,RCB, RCB 
+NOP                      
+NOP                      
+BSFA ROUT, ZERO,R0, R0   
+SADD ROUT, R0,RCL        
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+T = 15
+NOP                      
+SWI RCL,R0               
+NOP                      
+NOP                      
+SWI RCL,R0               
+SWI RCL,RCR              
+JUMP 0, 16               
+NOP                      
+NOP                      
+SWI RCT,RCL              
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+T = 16
+EXIT                     
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      
+NOP                      

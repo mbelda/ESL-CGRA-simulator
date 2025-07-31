@@ -82,7 +82,8 @@ class CGRA:
     def run( self, pr, limit ):
         steps = 0
         while not self.step(pr):
-            print("-------")
+            if (PRINT_OUTS):
+                print("-------")
             steps += 1
             if steps > limit:
                 print("EXECUTION LIMIT REACHED (",limit,"steps)")
@@ -374,7 +375,9 @@ class PE:
     ops_jump    = { 'JUMP'      : '' }
     ops_exit    = { 'EXIT'      : '' }
 
-def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=None):
+def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=None, printVal=1 ):
+    global PRINT_OUTS
+    PRINT_OUTS = printVal
     ker = []
     mem = []
 
