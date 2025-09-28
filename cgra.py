@@ -5,8 +5,8 @@ import os.path
 
 from kernels import *
 
-N_ROWS = 4
-N_COLS = 4
+N_ROWS = 8
+N_COLS = 8
 INSTR_SIZE = N_ROWS + 1
 MAX_COL = N_COLS - 1
 MAX_ROW = N_ROWS - 1
