@@ -69,6 +69,7 @@ class CGRA:
         self.memory     = memory
         self.instr2exec = 0
         self.cycles     = 0
+        self.aproxcycles = 0
         if read_addrs is not None and len(read_addrs) == N_COLS: 
             self.load_addr = read_addrs
         else:   
@@ -89,8 +90,31 @@ class CGRA:
                 print("EXECUTION LIMIT REACHED (",limit,"steps)")
                 print("Extend the execution by calling the run with argument limit=<steps>.")
                 break
+        print("Estimated accurate cycles: " + str(self.aproxcycles))
         return self.memory
 
+    def maxCyclesThisPC(self):
+        nMemOps = 0
+        nMulOps = 0
+        for r in range(N_ROWS):
+            for c in range(N_COLS):
+                instr =  (self.instrs[self.instr2exec].ops[r][c]).replace(',', ' ').split()
+                try:
+                    op = instr[0]
+                except:
+                    op = instr
+                if op in ['LWD','LWI','SWD','SWI']:
+                    nMemOps += 1
+                if op in ['SMUL']:
+                    nMulOps += 1
+        maxcycles = 1
+        if nMemOps > 0:
+            maxcycles = 1 + nMemOps
+        if nMulOps > 0:
+            maxcycles = max(maxcycles, 3)
+        
+        return maxcycles
+                    
     def step( self, prs="ROUT" ):
         for r in range(N_ROWS):
             for c in range(N_COLS):
@@ -109,8 +133,10 @@ class CGRA:
             reg     = [[ self.cells[r][i].regs[regs[x]]   for i in range(N_COLS) ] for x in range(len(regs)) ]
             print_out( prs, outs, insts, ops, reg )
 
+        self.aproxcycles += self.maxCyclesThisPC()
         self.instr2exec += 1
         self.cycles += 1
+        
         return self.exit
 
     def get_neighbour_address( self, r, c, dir ):
