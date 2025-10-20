@@ -5,8 +5,8 @@ import os.path
 
 from kernels import *
 
-N_ROWS = 4
-N_COLS = 4
+N_ROWS = 3
+N_COLS = 3
 INSTR_SIZE = N_ROWS + 1
 MAX_COL = N_COLS - 1
 MAX_ROW = N_ROWS - 1
@@ -89,7 +89,7 @@ class CGRA:
             if steps > limit:
                 print("EXECUTION LIMIT REACHED (",limit,"steps)")
                 print("Extend the execution by calling the run with argument limit=<steps>.")
-                break
+                return self.memory
         print("Estimated accurate cycles: " + str(self.aproxcycles))
         return self.memory
 
@@ -133,7 +133,9 @@ class CGRA:
             reg     = [[ self.cells[r][i].regs[regs[x]]   for i in range(N_COLS) ] for x in range(len(regs)) ]
             print_out( prs, outs, insts, ops, reg )
 
-        self.aproxcycles += self.maxCyclesThisPC()
+        ncyclesthisPc = self.maxCyclesThisPC()
+        print("Aprox cycles this pc: " + str(ncyclesthisPc))
+        self.aproxcycles += ncyclesthisPc
         self.instr2exec += 1
         self.cycles += 1
         
