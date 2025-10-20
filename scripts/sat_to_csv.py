@@ -47,6 +47,7 @@ def convert(infile, outfile, version=""):
     n_nodes = len(conf_set[0][1:])
     n_cols = int(math.sqrt(n_nodes))
     n_rows = n_cols
+    print(str(n_cols) + " mesh grid detected")
 
     # Write the output file
     with open(outfile, "w", newline='') as f:
