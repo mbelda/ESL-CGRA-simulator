@@ -109,7 +109,7 @@ class CGRA:
                     nMulOps += 1
         maxcycles = 1
         if nMemOps > 0:
-            maxcycles = 4
+            maxcycles = 1 + nMemOps
         if nMulOps > 0:
             maxcycles = max(maxcycles, 3)
         
