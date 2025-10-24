@@ -5,8 +5,8 @@ import os.path
 
 from kernels import *
 
-N_ROWS = 3
-N_COLS = 3
+N_ROWS = 4
+N_COLS = 4
 INSTR_SIZE = N_ROWS + 1
 MAX_COL = N_COLS - 1
 MAX_ROW = N_ROWS - 1
@@ -90,7 +90,11 @@ class CGRA:
                 print("EXECUTION LIMIT REACHED (",limit,"steps)")
                 print("Extend the execution by calling the run with argument limit=<steps>.")
                 return self.memory
-        print("Estimated accurate cycles: " + str(self.aproxcycles))
+        print("Execution accurate cycles: " + str(self.aproxcycles))
+        config_cycles = len(self.instrs)*N_COLS
+        print("Config cycles: " + str(config_cycles))
+        print("Total cycles: " + str(config_cycles + self.aproxcycles))
+
         return self.memory
 
     def maxCyclesThisPC(self):
@@ -134,7 +138,7 @@ class CGRA:
             print_out( prs, outs, insts, ops, reg )
 
         ncyclesthisPc = self.maxCyclesThisPC()
-        print("Aprox cycles this pc: " + str(ncyclesthisPc))
+        if PRINT_OUTS: print("Aprox cycles this pc: " + str(ncyclesthisPc))
         self.aproxcycles += ncyclesthisPc
         self.instr2exec += 1
         self.cycles += 1
@@ -438,5 +442,5 @@ def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=
     with open( kernel + "/"+FILENAME_MEM_O+version+EXT, 'w+') as f:
         for row in sorted_mem: csv.writer(f).writerow(row)
 
-    print("\n\nEND")
+    print("END")
 
