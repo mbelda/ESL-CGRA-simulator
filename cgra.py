@@ -96,7 +96,7 @@ class CGRA:
         print("Total cycles: " + str(config_cycles + self.aproxcycles))
 
         return self.memory
-
+    
     def maxCyclesThisPC(self):
         nMemOps = 0
         nMulOps = 0
@@ -406,6 +406,15 @@ class PE:
     ops_nop     = { 'NOP'       : '' }
     ops_jump    = { 'JUMP'      : '' }
     ops_exit    = { 'EXIT'      : '' }
+
+def estimatedConfigCycles( kernel, version=""):
+    ker = []
+    # Read the instructions file
+    with open( kernel + "/"+FILENAME_INSTR+version+EXT, 'r') as f:
+        for row in csv.reader(f): ker.append(row)
+    instrs = ker_parse(ker)
+    return len(instrs)*N_COLS
+
 
 def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=None, printVal=1 ):
     global PRINT_OUTS
