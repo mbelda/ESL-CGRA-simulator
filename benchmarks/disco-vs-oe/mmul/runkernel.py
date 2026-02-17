@@ -14,6 +14,7 @@ version = ""
 CGRA_N_ROWS = 4
 CGRA_N_COLS = 4
 first_addr = 20000
+DEBUG = False
 
 
 def printAsMatrix(array, rows, cols):
@@ -72,8 +73,11 @@ def configMemory(A_data, B_data, C_data, rowsA, colsA, colsB):
 
 
 def runKernel(load_addrs, max_it=1000):
+    pr = []
+    if DEBUG: 
+        pr = ["ROUT", "INST"]
     run(kernel_name,
-        pr=["ROUT", "INST"],
+        pr=pr,
         load_addrs=load_addrs,
         version=version,
         limit=max_it)
