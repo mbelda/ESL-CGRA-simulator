@@ -5,6 +5,7 @@ import os
 import re
 import argparse
 import csv
+import shutil
 from collections import defaultdict
 
 parser = argparse.ArgumentParser(description="Procesar instrucciones en CSV.")
@@ -19,6 +20,7 @@ arg_replacement = args.arg_val
 # Regex
 jump_re = re.compile(r'\bJUMP\s*0\s*,\s*(\d+)\b', flags=re.IGNORECASE)
 arg_re = re.compile(r'(?i)arg(\d+)')
+sito_fpt_re = re.compile(r'\b(SITOFP|FPTOSI)\b', flags=re.IGNORECASE)
 
 # Leer CSV completo
 with open(input_path, newline='', encoding="utf-8") as f:
@@ -74,10 +76,13 @@ for row_idx, row in enumerate(reader):
         # ---- Sustituir argX ----
         new_cell2 = arg_re.sub(arg_replacement, new_cell)
 
-        if new_cell2 != original_cell:
-            changes.append((row_idx + 1, col_idx + 1, original_cell, new_cell2))
+        # ---- Sustituir SITOFP/FPTOSI por NOP ----
+        new_cell3 = sito_fpt_re.sub("NOP", new_cell2)
 
-        new_row.append(new_cell2)
+        if new_cell3 != original_cell:
+            changes.append((row_idx + 1, col_idx + 1, original_cell, new_cell3))
+
+        new_row.append(new_cell3)
 
     out_rows.append(new_row)
 
@@ -99,17 +104,23 @@ if args.dry_run:
     sys.exit(0)
 
 # ---- Escribir CSV modificado ----
-tmp = tempfile.NamedTemporaryFile(delete=False, mode="w", newline='', encoding="utf-8")
-
+tmp_filename = "tmp_processed.csv"  # se crea en el directorio actual
 try:
-    writer = csv.writer(tmp)
-    writer.writerows(out_rows)
-    tmp.close()
-    os.replace(tmp.name, input_path)
+    # Crear el CSV temporal en .
+    with open(tmp_filename, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerows(out_rows)
+    
+    # Copiar al path original para sobreescribir
+    shutil.copy(tmp_filename, input_path)
+    
+    # Borrar el temporal
+    os.remove(tmp_filename)
+    
     print(f"\nArchivo '{input_path}' procesado correctamente. ({len(changes)} cambios)")
 except Exception as e:
     try:
-        os.remove(tmp.name)
+        os.remove(tmp_filename)
     except Exception:
         pass
     print("Error al escribir el fichero:", e)
