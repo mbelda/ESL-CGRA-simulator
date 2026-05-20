@@ -5,8 +5,8 @@ import os.path
 
 from kernels import *
 
-N_ROWS = 5
-N_COLS = 5
+N_ROWS = 3
+N_COLS = 3
 INSTR_SIZE = N_ROWS + 1
 MAX_COL = N_COLS - 1
 MAX_ROW = N_ROWS - 1
@@ -423,8 +423,11 @@ def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=
     mem = []
 
     # Read the instructions file
-    with open( kernel + "/"+FILENAME_INSTR+version+EXT, 'r') as f:
-        for row in csv.reader(f): ker.append(row)
+    path_completo = os.path.join(kernel, f"{FILENAME_INSTR}{version}{EXT}")
+
+    with open(path_completo, 'r') as f:
+        for row in csv.reader(f):
+            ker.append(row)
     
     # Create an empty memory file if there is not any
     if not os.path.isfile(kernel + "/"+FILENAME_MEM+version+EXT):
