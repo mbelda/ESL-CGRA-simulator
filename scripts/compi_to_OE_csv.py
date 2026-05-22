@@ -18,7 +18,7 @@ input_path = args.input
 arg_replacement = args.arg_val
 
 # Regex
-jump_re = re.compile(r'\bJUMP\s*0\s*,?\s*(\d+)\b', flags=re.IGNORECASE)
+#jump_re = re.compile(r'\bJUMP\s*0\s*,?\s*(\d+)\b', flags=re.IGNORECASE)
 arg_re = re.compile(r'(?i)arg(\d+)')
 sito_fpt_re = re.compile(r'\b(SITOFP|FPTOSI)\b', flags=re.IGNORECASE)
 
@@ -66,7 +66,8 @@ for row_idx, row in enumerate(reader):
             else:
                 return f"BEQ R0, R0, {m}"
 
-        new_cell = jump_re.sub(replace_jump, cell)
+        # new_cell = jump_re.sub(replace_jump, cell)
+        new_cell = cell
 
         # ---- Detectar argX (con repeticiones) ----
         for match in arg_re.finditer(new_cell):

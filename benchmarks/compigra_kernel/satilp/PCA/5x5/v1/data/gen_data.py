@@ -22,27 +22,13 @@ def pca_reference(inputX, mu, NI, NJ):
     # C = XcT * Xc
     for i in range(NJ):
         for j in range(NJ):
-            s = 0
+            s = np.int32(0)
             for k in range(NI):
-                s += XcT[i][k] * Xc[k][j]
+                s = np.int32(s + XcT[i][k] * Xc[k][j])
             C[i][j] = s
-    
-    # Print C as matrix
-    print("C:")
-    for i in range(NJ):
-        print("  ", end="")
-        for j in range(NJ):
-            print(f"{C[i][j]:6d} ", end="")
-        print()
-    # Print inputX as matrix
-    print("inputX:")
-    for i in range(NI):
-        print("  ", end="")
-        for j in range(NJ):
-            print(f"{inputX[i][j]:6d} ", end="")
-        print()
 
-    return Xc.copy(), XcT.copy(), C.copy()
+    return Xc, XcT, C
+
 
 # -------------------------------------------------
 # Generate + write
@@ -67,14 +53,7 @@ def generate_and_write(NI, NJ, seed=None):
     # Generate integer data (small range to avoid overflow)
     # -------------------------------------------------
     inputX_2d = np.random.randint(-5, 6, size=(NI, NJ), dtype=np.int32)
-    #inputX_2d = np.array([np.ones(NJ, dtype=np.int32) if i % 2 == 0 
-    #                  else np.zeros(NJ, dtype=np.int32) 
-    #                  for i in range(NI)])
-    #inputX_2d = np.full((NI, NJ), -2, dtype=np.int32)
-    #inputX_2d[:, ::2] = 1
     mu = np.random.randint(-5, 6, size=(NJ,), dtype=np.int32)
-    #inputX_2d = np.ones((NI, NJ), dtype=np.int32)
-    #mu = np.ones((NJ,), dtype=np.int32)
 
     # Golden computation
     Xc_2d, XcT_2d, C_2d = pca_reference(inputX_2d, mu, NI, NJ)
@@ -103,11 +82,9 @@ def generate_and_write(NI, NJ, seed=None):
 
         write_array(f, "inputX", inputX)
         write_array(f, "mu", mu)
-        #write_array(f, "inputX", [1 for _ in range(len(inputX))])  # dummy input
-        #write_array(f, "mu", [1 for _ in range(len(mu))])  # dummy mean
         write_array(f, "Xc_golden", Xc)
         write_array(f, "XcT_golden", XcT)
-        write_array(f, "C_golden", [0 for _ in range(len(C))])  # dummy C, to be filled by the kernel
+        write_array(f, "C_golden", C)
         write_array(f, "expected_C", C)
 
         f.write("#endif\n")
@@ -122,7 +99,6 @@ def generate_and_write(NI, NJ, seed=None):
         Xc_golden=Xc,
         XcT_golden=XcT,
         C_golden=C,
-        expected_C=C,
         NI=NI,
         NJ=NJ
     )
@@ -134,7 +110,6 @@ def generate_and_write(NI, NJ, seed=None):
         Xc_golden=Xc,
         XcT_golden=XcT,
         C_golden=C,
-        expected_C=C,
         NI=NI,
         NJ=NJ
     )

@@ -3,12 +3,12 @@ from cgra import *
 from kernels import *
 
 # Global variables
-CGRA_N_ROWS = 3
-CGRA_N_COLS = 3
+CGRA_N_ROWS = 4
+CGRA_N_COLS = 4
 SIZE = 60
 
 # Adress
-first_addr = 128
+first_addr = 20000
 
 # Benchmark
 kernel_name = f"benchmarks/compigra_kernel/satilp/Kalman_2/{CGRA_N_ROWS}x{CGRA_N_COLS}/v2/"
@@ -36,11 +36,12 @@ def configMemory(A, Q, AP, NI):
     # 2 : first_addr_AP
     # 3 : first_addr_APA
     # 4 : first_addr_P
+    
 
-    config_vals[0] = [first_addr_AP, first_addr_Q] # 2, 1
-    config_vals[1] = [] # 
-    config_vals[2] = [first_addr_APA, first_addr_A, first_addr_P] # 3, 0, 4
-     
+    config_vals[0] = [first_addr_AP] # 2
+    config_vals[1] = [first_addr_Q, first_addr_APA] # 1, 3
+    config_vals[2] = [first_addr_A] # 0
+    config_vals[3] = [first_addr_P] # 4
     
 
     addr_config_loads = [0 for i in range(CGRA_N_COLS)]
@@ -88,22 +89,46 @@ AP = data["AP"]
 NI = int(data["NI"])
 
 # Expected results
+AT_expected = data["AT_expected"]
 APA_expected = data["APA_expected"]
 P_expected = data["P_expected"]
 
-print(f"Testing Karlman_2 sizes : {NI}")
+print(f"Testing Kalman_2 sizes : {NI}")
 
 load_addrs = configMemory(A, Q, AP, NI)
 
-runKernel(load_addrs, max_it=20000000, printVal=0)
+runKernel(load_addrs, max_it=2000000000, printVal=0)
 #estimatedConfigCycles(kernel_name, version)
 
 # Get result from CGRA
+first_addr_AT_res = first_addr + NI*NI*4*3
+AT_result = getResult(first_addr_AT_res, NI*NI)
+
 first_addr_APA_res = first_addr + NI*NI*4*4
 APA_result = getResult(first_addr_APA_res, NI*NI)
 
 first_addr_P_res = first_addr + NI*NI*4*5
 P_result = getResult(first_addr_P_res, NI*NI)
+
+# Check result correctness
+print("Check AT result:")
+errors = 0
+err_idx = []
+for i in range(len(AT_expected)):
+    if AT_expected[i] != AT_result[i]:
+        errors += 1
+        err_idx.append(i)
+if errors > 0:
+    print("Err: " + str(errors))
+    print("Expected: ")
+    printAsMatrix(AT_expected, 1, NI)
+    print("CGRA: ")
+    printAsMatrix(AT_result, 1, NI)
+    print("Errors are: Exp : CGRA")
+    for i in err_idx:
+        print(f"Idx[{i}] {AT_expected[i]} : {AT_result[i]}")
+else:
+    print("OK")
 
 print("Check APA result:")
 errors = 0
@@ -146,4 +171,3 @@ if errors > 0:
         print(f"Idx[{row}][{col}] {P_expected[i]} : {P_result[i]}")
 else:
     print("OK")
-
