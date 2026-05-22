@@ -5,8 +5,8 @@ import os.path
 
 from kernels import *
 
-N_ROWS = 3
-N_COLS = 3
+N_ROWS = 5
+N_COLS = 5
 INSTR_SIZE = N_ROWS + 1
 MAX_COL = N_COLS - 1
 MAX_ROW = N_ROWS - 1
@@ -310,7 +310,10 @@ class PE:
             pass # Intentional
 
         elif self.op in self.ops_jump:
-            self.flags['branch'] = val1
+            val1    = self.fetch_val( instr[1] )
+            val2    = self.fetch_val( instr[2] )
+            self.jump( val1 + val2)
+            self.out = self.out # Intentional ROUT not modified
 
         elif self.op in self.ops_exit:
             self.flags['exit'] = 1
@@ -375,6 +378,9 @@ class PE:
 
     def blt( self,  val1, val2, branch ):
         self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
+    
+    def jump( self, branch):
+        self.flags['branch'] = branch
 
     ops_arith   = { 'SADD'      : sadd,
                     'SSUB'      : ssub,
