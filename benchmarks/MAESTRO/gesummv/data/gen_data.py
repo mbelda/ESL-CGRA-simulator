@@ -56,8 +56,9 @@ def generate_and_write(N, seed=None):
     # -------------------------------------------------
     # Write C header
     # -------------------------------------------------
-    def write_array(f, name, arr):
-        f.write(f"int {name}[{len(arr)}] = {{\n    ")
+    def write_array(f, name, arr, interleaved=False):
+        attr = ' __attribute__((section(".xheep_data_interleaved")))' if interleaved else ''
+        f.write(f"int {name}[{len(arr)}]{attr} = {{\n    ")
         f.write(", ".join(str(v) for v in arr))
         f.write("\n};\n\n")
 
@@ -71,11 +72,12 @@ def generate_and_write(N, seed=None):
         f.write(f"#define ALPHA {alpha}\n")
         f.write(f"#define BETA {beta}\n\n")
 
-        write_array(f, "A", A)
-        write_array(f, "B", B)
-        write_array(f, "x", x)
-        write_array(f, "y", y)
-        write_array(f, "y_expected", y_expected)
+        # In/Out variables marked as interleaved for X-HEEP memory banking
+        write_array(f, "A", A, interleaved=True)
+        write_array(f, "B", B, interleaved=True)
+        write_array(f, "x", x, interleaved=True)
+        write_array(f, "y", y, interleaved=True)
+        write_array(f, "y_expected", y_expected, interleaved=False)
 
         f.write("#endif\n")
 
@@ -104,7 +106,6 @@ def generate_and_write(N, seed=None):
 def main():
     parser = argparse.ArgumentParser(description="Generate Gesummv Polybench Data variants by exact size N")
     
-    # Cambiado para recibir --N directamente como entero
     parser.add_argument("--N", type=int, required=True, help="Exact matrix/vector size dimension N")
     parser.add_argument("--seed", type=int, default=3)
 
