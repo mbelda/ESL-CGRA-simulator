@@ -21,11 +21,21 @@ from cgra import *
 from kernels import *
 
 # --------------------------------------------
-#      GLOBAL CONFIG
+#      GLOBAL CONFIG & PARAMETER PARSING
 # --------------------------------------------
 
 DEBUG = 0
-N = 16
+
+# Lectura de N por parámetro de línea de comandos (Por defecto 16 si no se especifica)
+if len(sys.argv) > 1:
+    try:
+        N = int(sys.argv[1])
+    except ValueError:
+        print(f"Error: El parámetro N debe ser un número entero. Se recibió '{sys.argv[1]}'.")
+        sys.exit(1)
+else:
+    print("Aviso: No se proporcionó el parámetro N. Usando valor por defecto: 16")
+    N = 16
 
 # Global structural variables 
 CGRA_N_ROWS = 4
@@ -41,6 +51,7 @@ version = f"_meth"
 # ------------------------------------------------------------------
 #  LOGGING & TERMINAL REDIRECTION CONFIGURATION
 # ------------------------------------------------------------------
+# Movido aquí abajo porque log_filename depende dinámicamente de N
 log_filename = f"gemver_p2_{N}_output.log"
 
 # Abrimos el archivo en modo escritura al iniciar el script
@@ -161,7 +172,7 @@ print(f"Full log execution details will write silently to: {log_filename}\n")
 
 load_addrs, first_addr_res = configMemory(A, x, y, z, beta, N)
 
-runKernel(load_addrs, max_it=2000000000, pr=["ROUT","R0", "INST"], printVal=1)
+runKernel(load_addrs, max_it=2000000000, pr=["ROUT","R0", "R1","R2", "INST"], printVal=1)
 
 # El resultado esperado es el vector x (longitud N)
 x_result = getResult(first_addr_res, N)
