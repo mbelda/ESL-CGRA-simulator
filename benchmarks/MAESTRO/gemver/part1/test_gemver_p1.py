@@ -129,6 +129,17 @@ def configMemory(A, u1, v1, u2, v2, N):
     kernel_add_memory_region(kernel_name, first_addr_u2, u2, version=version)
     kernel_add_memory_region(kernel_name, first_addr_v2, v2, version=version)
 
+    # --- NUEVA SECCIÓN: IMPRESIÓN DE DIRECCIONES INICIALES ---
+    print("------------------------------------------------")
+    print("Direcciones de memoria iniciales del CGRA:")
+    print(f"  Matriz A  (Inicio): {first_addr_A}")
+    print(f"  Vector u1 (Inicio): {first_addr_u1}")
+    print(f"  Vector v1 (Inicio): {first_addr_v1}")
+    print(f"  Vector u2 (Inicio): {first_addr_u2}")
+    print(f"  Vector v2 (Inicio): {first_addr_v2}")
+    print(f"  Resultado (Inicio): {first_addr_res}")
+    print("------------------------------------------------\n")
+
     return addr_config_loads, first_addr_res
 
 def printAsMatrix(array, rows, cols):
@@ -172,7 +183,7 @@ print(f"Full log execution details will write silently to: {log_filename}\n")
 
 load_addrs, first_addr_res = configMemory(A, u1, v1, u2, v2, N)
 
-runKernel(load_addrs, max_it=2000000000, pr=["ROUT", "R1", "INST"], printVal=1)
+runKernel(load_addrs, max_it=2000000000, pr=["ROUT", "R2", "R3", "INST"], printVal=1)
 
 # El resultado esperado es una matriz NxN (N*N elementos)
 A_result = getResult(first_addr_res, N * N)
