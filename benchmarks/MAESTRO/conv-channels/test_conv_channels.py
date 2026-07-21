@@ -121,7 +121,7 @@ def configMemory(input_lider, weights, channels, kh, kw, ih, iw):
     loopKWIt = kw - 1
 
     # --------------------------------------------------------------------------
-    # MAPEO ESTRUCTURADO DE REGISTROS DE CONFIGURACIÓN DEL CGRA (COLUMNAS 0 A 3)
+    # CONFIG LOADS
     # --------------------------------------------------------------------------
     # Columna 0               Columna 1             Columna 2             Columna 3
     # --------------------------------------------------------------------------
@@ -135,14 +135,16 @@ def configMemory(input_lider, weights, channels, kh, kw, ih, iw):
     # KW                      IH                    IW                    KH
     # loopCIt                 KH                    KW                    IW     
     # --------------------------------------------------------------------------
+    # CONFIG STORES
+    # --------------------------------------------------------------------------
     # 0                       store_address         0                     0
     # --------------------------------------------------------------------------
     config_vals = [[] for i in range(CGRA_N_COLS)]
 
-    config_vals[0] = [addr_Im_0, addr_F_4, size_ch_f, size_ch_im, ih, kh, kw, loopCIt, 0]
-    config_vals[1] = [size_ch_im, size_ch_f, addr_Im_9, addr_F_13, iw, kw, ih, kh, store_address]
-    config_vals[2] = [addr_F_2, addr_Im_6, size_ch_im, size_ch_f, kh, loopKHIt, iw, kw, 0]
-    config_vals[3] = [size_ch_f, size_ch_im, addr_F_11, addr_Im_15, kw, loopKWIt, kh, iw, 0]
+    config_vals[0] = [addr_Im_0, addr_F_4, size_ch_f, size_ch_im, ih, kh, kw, loopCIt]
+    config_vals[1] = [size_ch_im, size_ch_f, addr_Im_9, addr_F_13, iw, kw, ih, kh]
+    config_vals[2] = [addr_F_2, addr_Im_6, size_ch_im, size_ch_f, kh, loopKHIt, iw, kw]
+    config_vals[3] = [size_ch_f, size_ch_im, addr_F_11, addr_Im_15, kw, loopKWIt, kh, iw]
     # Carga automática del bloque de configuración en el simulador
     addr_config_loads = [0 for i in range(CGRA_N_COLS)]
     for i in range(CGRA_N_COLS):
