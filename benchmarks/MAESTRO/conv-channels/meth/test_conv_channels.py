@@ -11,8 +11,8 @@ from pathlib import Path
 # ------------------------------------------------------------------
 script_dir = Path(__file__).resolve().parent
 
-# repo/benchmarks/MAESTRO/3loops/ -> repo/
-repo_root = script_dir.parents[2] 
+# repo/benchmarks/MAESTRO/conv/meth/ -> repo/
+repo_root = script_dir.parents[3] 
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 

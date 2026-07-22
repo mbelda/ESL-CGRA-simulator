@@ -50,7 +50,7 @@ first_addr = 20000
 
 # Employs local relative execution folder path
 kernel_name = "./"
-version = f"_kh{kh}_kw{kw}_ih{ih}_iw{iw}" 
+version = f"_c{channels}_iw{iw}_kw{kw}" 
 
 # ------------------------------------------------------------------
 #  LOGGING & TERMINAL REDIRECTION CONFIGURATION
@@ -141,10 +141,22 @@ def configMemory(input_lider, weights, channels, kh, kw, ih, iw):
     # --------------------------------------------------------------------------
     config_vals = [[] for i in range(CGRA_N_COLS)]
 
-    config_vals[0] = [addr_Im_0, addr_F_4, size_ch_f, size_ch_im, ih, kh, kw, loopCIt]
-    config_vals[1] = [size_ch_im, size_ch_f, addr_Im_9, addr_F_13, iw, kw, ih, kh]
-    config_vals[2] = [addr_F_2, addr_Im_6, size_ch_im, size_ch_f, kh, loopKHIt, iw, kw]
-    config_vals[3] = [size_ch_f, size_ch_im, addr_F_11, addr_Im_15, kw, loopKWIt, kh, iw]
+    # int conv_deepbindi(int image[CHANNELS][IH][IW],int weight[CHANNELS][KH][KW],int out[1]
+    # 0: first_addr_in
+    # 1: first_addr_w
+    # 2: store_address
+
+    if channels == 32 or channels == 64:
+        config_vals[0] = [first_addr_w] # 1
+        config_vals[1] = [first_addr_in, store_address] # 0, 2
+        config_vals[2] = []
+        config_vals[3] = []
+    if channels == 48:
+        config_vals[0] = [store_address] # 2
+        config_vals[1] = [first_addr_in] # 0
+        config_vals[2] = []
+        config_vals[3] = [first_addr_w] # 1
+
     # Carga automática del bloque de configuración en el simulador
     addr_config_loads = [0 for i in range(CGRA_N_COLS)]
     for i in range(CGRA_N_COLS):
