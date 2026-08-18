@@ -8,6 +8,10 @@ import sys
 def convert(infile, outfile, version=""):
     """Convierte la salida de SAT-MapIt en un CSV compatible con el simulador."""
 
+    # 1. Obtener la carpeta del archivo de entrada y unirla al nombre de salida
+    input_dir = os.path.dirname(infile)
+    outfile = os.path.join(input_dir, outfile)
+
     # Inserción limpia de la versión antes de la extensión del archivo
     if version:
         base, ext = os.path.splitext(outfile)
@@ -63,7 +67,7 @@ def convert(infile, outfile, version=""):
     n_rows = n_cols
     print(f"Malla detectada: {n_cols}x{n_rows} ({n_nodes} nodos)")
 
-    # Crear directorio de salida si no existe
+    # Crear directorio de salida si no existe (por si el input está en una subcarpeta no creada)
     out_dir = os.path.dirname(outfile)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -108,7 +112,7 @@ def main():
         "-o",
         "--output",
         required=True,
-        help="Ruta al archivo de salida (ej: ./resultados/sim_input.csv)",
+        help="Nombre del archivo de salida (ej: sim_input.csv)",
     )
     parser.add_argument(
         "-v",

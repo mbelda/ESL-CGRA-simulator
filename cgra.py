@@ -110,7 +110,7 @@ class CGRA:
                 if op in ['LWD','LWI','SWD','SWI']:
                     nMemOps += 1
                 if op in ['SMUL']:
-                    nMulOps += 1
+                    nMulOps += 3
         maxcycles = 1
         if nMemOps > 0:
             maxcycles = 1 + nMemOps
