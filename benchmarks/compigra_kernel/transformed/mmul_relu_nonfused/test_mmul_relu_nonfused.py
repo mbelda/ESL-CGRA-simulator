@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import sys
+from contextlib import redirect_stdout
 import csv
 import random
+import sys
 from pathlib import Path
 
 # -----------------------------------------------------------------------------
@@ -34,18 +35,20 @@ CGRA_N_ROWS = 4
 CGRA_N_COLS = 4
 version = f"_{CGRA_N_ROWS}x{CGRA_N_COLS}_{dim}"
 
-first_addr = 2000
+first_addr = 128
+
 
 # -----------------------------------------------------------------------------
 # Funciones auxiliares
 # -----------------------------------------------------------------------------
 def printAsMatrix(array, rows, cols):
     for i in range(rows):
-        print(array[i * cols:(i + 1) * cols])
+        print(array[i * cols : (i + 1) * cols])
+
 
 def configMemory(inputX_data, inputY_data, output_data, NI, NJ, NK):
     kernel_clear_memory(".", version=version)
-    
+
     # Cálculo de direcciones iniciales (4 bytes por entero)
     first_addr_inputX = first_addr
     first_addr_inputY = first_addr_inputX + (NI * NK * 4)
@@ -56,38 +59,49 @@ def configMemory(inputX_data, inputY_data, output_data, NI, NJ, NK):
         [first_addr_inputY, first_addr_output],
         [first_addr_inputX],
         [first_addr_output],
-        []
+        [],
     ]
-    
+
     load_addrs = []
     current_addr = 0
-    
+
     for config_vals in config_cols:
         load_addrs.append(current_addr)
-        kernel_add_memory_region(".", current_addr, config_vals, version=version)
+        kernel_add_memory_region(
+            ".", current_addr, config_vals, version=version
+        )
         current_addr += len(config_vals) * 4
-    
+
     # Carga de datos de entrada/salida
     data_regions = [
         (first_addr_inputX, inputX_data),
         (first_addr_inputY, inputY_data),
-        (first_addr_output, output_data)
+        (first_addr_output, output_data),
     ]
-    
+
     for addr, data in data_regions:
         kernel_add_memory_region(".", addr, data, version=version)
-    
+
     return load_addrs
 
-def runKernel(load_addrs, max_it=1000, printVal=0):
-    run(".", pr=["ROUT", "R0", "R1", "INST"], load_addrs=load_addrs, version=version, limit=max_it, printVal=printVal)
+
+def runKernel(load_addrs, max_it=1000, printVal=1):
+    run(
+        ".",
+        pr=["ROUT", "R0", "R1", "R2", "INST"],
+        load_addrs=load_addrs,
+        version=version,
+        limit=max_it,
+        printVal=printVal,
+    )
+
 
 def getResult(start_addr, end_addr, rows, cols):
     result = [0 for _ in range(rows * cols)]
     csv_file_path = Path(f"memory_out{version}.csv")
-    
-    with open(csv_file_path, 'r') as f:
-        csv_reader = csv.reader(f, delimiter=',')
+
+    with open(csv_file_path, "r") as f:
+        csv_reader = csv.reader(f, delimiter=",")
         for row in csv_reader:
             try:
                 addr = int(row[0])
@@ -97,9 +111,10 @@ def getResult(start_addr, end_addr, rows, cols):
                 print("Error: Values in memory_out CSV file are not integers.")
     return result
 
+
 def mmul_relu_cpu(inputX_data, inputY_data, NI, NJ, NK):
     expected_res = [0 for _ in range(NI * NJ)]
-    
+
     # Multiplicación de matrices
     for i in range(NI):
         for j in range(NJ):
@@ -107,20 +122,21 @@ def mmul_relu_cpu(inputX_data, inputY_data, NI, NJ, NK):
             for k in range(NK):
                 sum_val += inputX_data[i * NK + k] * inputY_data[k * NJ + j]
             expected_res[i * NJ + j] = sum_val
-            
+
     # ReLU
     for i in range(NI):
         for j in range(NJ):
             if expected_res[i * NJ + j] < 0:
                 expected_res[i * NJ + j] = 0
-                
+
     return expected_res
+
 
 # -----------------------------------------------------------------------------
 # Flujo Principal
 # -----------------------------------------------------------------------------
 def main():
-    print(f"[-] Ejecutando kernel: {kernel_name}")
+    log_file_path = Path(f"execution{version}.log")
 
     NI = dim
     NJ = dim
@@ -136,36 +152,53 @@ def main():
     inputX_cpy = inputX_data.copy()
     inputY_cpy = inputY_data.copy()
 
-    # Configurar memoria y ejecutar kernel
-    load_addrs = configMemory(inputX_data, inputY_data, output_data, NI, NJ, NK)
-    runKernel(load_addrs, max_it=20000000, printVal=0)
+    # Redirigir stdout al archivo .log durante la ejecución pesada
+    with open(log_file_path, "w", encoding="utf-8") as log_f:
+        with redirect_stdout(log_f):
+            print(f"[-] Ejecutando kernel: {kernel_name}")
 
-    # Cálculo de la dirección base y límite de 'output'
-    first_addr_inputX = first_addr
-    first_addr_inputY = first_addr_inputX + (NI * NK * 4)
-    first_addr_output = first_addr_inputY + (NK * NJ * 4)
-    end_addr_output   = first_addr_output + (NI * NJ * 4)
+            # Configurar memoria y ejecutar kernel (printVal activado a 1)
+            load_addrs = configMemory(
+                inputX_data, inputY_data, output_data, NI, NJ, NK
+            )
+            runKernel(load_addrs, max_it=20000000, printVal=1)
 
-    # Obtener resultado del CGRA desde la región de 'output'
-    result = getResult(first_addr_output, end_addr_output, NI, NJ)
+            # Cálculo de la dirección base y límite de 'output'
+            first_addr_inputX = first_addr
+            first_addr_inputY = first_addr_inputX + (NI * NK * 4)
+            first_addr_output = first_addr_inputY + (NK * NJ * 4)
+            end_addr_output = first_addr_output + (NI * NJ * 4)
 
-    # Obtener resultado de referencia en CPU
-    expected_res = mmul_relu_cpu(inputX_cpy, inputY_cpy, NI, NJ, NK)
+            # Obtener resultado del CGRA desde la región de 'output'
+            result = getResult(first_addr_output, end_addr_output, NI, NJ)
 
-    # Comprobar diferencias
-    errors = 0
-    for i in range(len(expected_res)):
-        if expected_res[i] != result[i]:
-            errors += 1
+            # Obtener resultado de referencia en CPU
+            expected_res = mmul_relu_cpu(inputX_cpy, inputY_cpy, NI, NJ, NK)
 
+            # Comprobar diferencias
+            errors = 0
+            for i in range(len(expected_res)):
+                if expected_res[i] != result[i]:
+                    errors += 1
+
+            if errors > 0:
+                print(f"Err: {errors}")
+                print("Expected: ")
+                printAsMatrix(expected_res, NI, NJ)
+                print("CGRA: ")
+                printAsMatrix(result, NI, NJ)
+            else:
+                print("OK")
+
+    # Salida concisa por la terminal
+    print(f"[-] Kernel: {kernel_name}")
     if errors > 0:
-        print(f"Err: {errors}")
-        print("Expected: ")
-        printAsMatrix(expected_res, NI, NJ)
-        print("CGRA: ")
-        printAsMatrix(result, NI, NJ)
+        print(
+            f"❌ ERROR: {errors} fallos detectados. Revisa '{log_file_path}' para ver los detalles."
+        )
     else:
-        print("OK")
+        print(f"✅ OK: Ejecución correcta. Log guardado en '{log_file_path}'.")
+
 
 if __name__ == "__main__":
     main()
