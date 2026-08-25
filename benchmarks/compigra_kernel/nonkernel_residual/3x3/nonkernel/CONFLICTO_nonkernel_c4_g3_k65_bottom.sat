@@ -1,0 +1,145 @@
+CellWidth = 34
+Time = 0
+JUMP 0 1                          SADD R0 ZERO 45                   NOP                               
+NOP                               LWD R1, ARG0                      LWD R1, ARG1                      
+NOP                               NOP                               LWD R1, ARG2                      
+Time = 1
+SADD ROUT ZERO 47                 NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 2
+NOP                               BGE R0 RCL 35                     NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 3
+JUMP 0 4                          NOP                               NOP                               
+NOP                               SADD R0 ZERO ZERO                 NOP                               
+NOP                               NOP                               NOP                               
+Time = 4
+NOP                               SADD ROUT ZERO 64                 NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 5
+NOP                               NOP                               NOP                               
+NOP                               BGE R0 RCT 34                     NOP                               
+NOP                               NOP                               NOP                               
+Time = 6
+SADD R0 ZERO ZERO                 NOP                               NOP                               
+SADD ROUT ZERO -1                 NOP                               SADD R0 ZERO ZERO                 
+SADD R0 ZERO 65                   NOP                               SADD R0 ZERO ZERO                 
+Time = 7
+BEQ RCB ZERO 29                   NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 8
+SADD ROUT R0 ZERO                 SMUL ROUT R0 65                   NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 9
+SADD ROUT ROUT 1                  NOP                               SADD ROUT RCL RCR                 
+SMUL ROUT RCT 64                  NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 10
+NOP                               SLL ROUT RCR 2                    NOP                               
+NOP                               SADD ROUT RCL R0                  NOP                               
+BGE RCB R0 23                     NOP                               NOP                               
+Time = 11
+SADD ROUT ROUT ZERO               SMUL ROUT R0 65                   NOP                               
+NOP                               SADD ROUT R1 RCT                  SLL ROUT RCL 2                    
+NOP                               NOP                               NOP                               
+Time = 12
+SADD ROUT ROUT 1                  NOP                               SADD ROUT RCL RCR                 
+SMUL ROUT RCT 64                  NOP                               SADD ROUT R1 ROUT                 
+NOP                               NOP                               NOP                               
+Time = 13
+NOP                               SLL ROUT RCR 2                    LWI ROUT RCB                      
+NOP                               SADD ROUT RCL R0                  NOP                               
+BGE RCB R0 17                     LWI ROUT RCT                      SADD R0 R0 ZERO                   
+Time = 14
+SADD ROUT ROUT ZERO               SMUL ROUT R0 65                   NOP                               
+NOP                               SADD ROUT R1 RCT                  SLL ROUT RCL 2                    
+NOP                               NOP                               SMUL ROUT RCL RCB                 
+Time = 15
+SADD ROUT ROUT 1                  NOP                               SADD ROUT RCL RCR                 
+SMUL ROUT RCT 64                  NOP                               SADD ROUT R1 ROUT                 
+NOP                               NOP                               SADD ROUT R0 ROUT                 
+Time = 16
+NOP                               SLL ROUT RCR 2                    LWI ROUT RCB                      
+NOP                               SADD ROUT RCL R0                  SADD ROUT RCB ZERO                
+BLT RCB R0 14                     LWI ROUT RCT                      SADD R0 ROUT ZERO                 
+Time = 17
+NOP                               NOP                               NOP                               
+NOP                               SADD ROUT R1 RCT                  SLL R0 RCL 2                      
+NOP                               NOP                               SMUL R2 RCL RCB                   
+Time = 18
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SADD ROUT R1 R0                   
+NOP                               NOP                               SADD R0 R0 R2                     
+Time = 19
+NOP                               NOP                               LWI ROUT RCB                      
+NOP                               NOP                               SADD ROUT RCB ZERO                
+NOP                               LWI ROUT RCT                      SADD R0 R0 ZERO                   
+Time = 20
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SMUL R2 RCL RCB                   
+Time = 21
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SADD ROUT R0 R2                   
+Time = 22
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SADD R0 RCB ZERO                  
+JUMP 0 29                         NOP                               NOP                               
+Time = 23
+NOP                               NOP                               NOP                               
+NOP                               SADD ROUT R1 RCT                  SLL R0 RCL 2                      
+NOP                               NOP                               NOP                               
+Time = 24
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SADD ROUT R1 R0                   
+NOP                               NOP                               NOP                               
+Time = 25
+NOP                               NOP                               LWI ROUT RCB                      
+NOP                               NOP                               NOP                               
+NOP                               LWI ROUT RCT                      SADD R0 R0 ZERO                   
+Time = 26
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SMUL R2 RCL RCB                   
+Time = 27
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SADD ROUT R0 R2                   
+Time = 28
+NOP                               NOP                               NOP                               
+NOP                               NOP                               SADD R0 RCB ZERO                  
+JUMP 0 29                         NOP                               NOP                               
+Time = 29
+NOP                               SMUL ROUT R0 64                   NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 30
+NOP                               NOP                               NOP                               
+NOP                               SADD ROUT RCT R0                  NOP                               
+NOP                               NOP                               NOP                               
+Time = 31
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               SLL ROUT RCT 2                    NOP                               
+Time = 32
+NOP                               NOP                               NOP                               
+NOP                               SADD R0 R0 1                      NOP                               
+NOP                               NOP                               SADD ROUT R1 RCL                  
+Time = 33
+NOP                               JUMP 0 4                          NOP                               
+NOP                               NOP                               SWI R0 RCB                        
+NOP                               NOP                               NOP                               
+Time = 34
+JUMP 0 1                          SADD R0 R0 1                      NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               
+Time = 35
+EXIT                              NOP                               NOP                               
+NOP                               NOP                               NOP                               
+NOP                               NOP                               NOP                               

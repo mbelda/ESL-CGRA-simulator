@@ -16,7 +16,7 @@ if [ ! -d "$SRC_DIR" ]; then
     exit 1
 fi
 
-echo -e "${BLUE}Iniciando el proceso de copia con gestión de ficheros .sat únicos...${NC}\n"
+echo -e "${BLUE}Iniciando el proceso de copia preservando el nombre completo de origen...${NC}\n"
 
 for folder_path in "$SRC_DIR"/*/; do
     [ -d "$folder_path" ] || continue
@@ -47,24 +47,11 @@ for folder_path in "$SRC_DIR"/*/; do
         continue
     fi
 
-    # 3. Extraer la subcategoría/sufijo tras parámetros c/g/k si existe
-    suffix=""
-    if [[ "$folder_name" =~ _g[0-9]+(_k[0-9]+)?(_c[0-9]+)?_(.+) ]]; then
-        suffix="${BASH_REMATCH[3]}"
-    elif [[ "$folder_name" =~ _c[0-9]+_g[0-9]+(_k[0-9]+)?_(.+) ]]; then
-        suffix="${BASH_REMATCH[2]}"
-    fi
-
-    # Limpieza del sufijo para quitar residuos de cX, gX, kX
-    if [ -n "$suffix" ]; then
-        suffix=$(echo "$suffix" | sed -E 's/^(c[0-9]+_|g[0-9]+_|k[0-9]+_)+//g')
-    fi
-
     # Ruta de la carpeta destino
     target_dir="$DST_DIR/$grid_size/$category"
     mkdir -p "$target_dir"
     
-    # 4. Seleccionar el archivo .sat adecuado
+    # 3. Seleccionar el archivo .sat adecuado
     shopt -s nullglob
     sat_files=("$folder_path"/*.sat)
     shopt -u nullglob
@@ -72,10 +59,8 @@ for folder_path in "$SRC_DIR"/*/; do
     target_sat=""
 
     if [ ${#sat_files[@]} -eq 1 ]; then
-        # REGLA: Si solo hay 1 archivo .sat, lo tomamos directamente sin importar el nombre
         target_sat="${sat_files[0]}"
     elif [ ${#sat_files[@]} -gt 1 ]; then
-        # Si hay más de uno, buscamos el que tiene información extendida (out_N_*.sat)
         for f in "${sat_files[@]}"; do
             fname=$(basename "$f")
             if [[ "$fname" =~ ^out_${g_val}_.+ ]]; then
@@ -83,7 +68,6 @@ for folder_path in "$SRC_DIR"/*/; do
                 break
             fi
         done
-        # Si no coincidió con el patrón extendido, tomamos el primero que no sea el out_N.sat simple
         if [ -z "$target_sat" ]; then
             for f in "${sat_files[@]}"; do
                 fname=$(basename "$f")
@@ -95,24 +79,18 @@ for folder_path in "$SRC_DIR"/*/; do
         fi
     fi
 
-    # 5. Copiar el archivo seleccionado si existe
+    # 4. Copiar utilizando el nombre íntegro de la carpeta para evitar cualquier colisión
     if [ -n "$target_sat" ] && [ -f "$target_sat" ]; then
         file_name=$(basename "$target_sat")
         
-        # Construir el nombre final incluyendo el sufijo de subcategoría si aplica
-        if [ -n "$suffix" ]; then
-            base_name="${file_name%.sat}"
-            final_name="${base_name}_${suffix}.sat"
-        else
-            final_name="$file_name"
-        fi
-        
+        # El nombre del archivo se construye con la raíz base y toda la metadata del nombre de la carpeta
+        final_name="${folder_name}.sat"
         dest_file="$target_dir/$final_name"
         
         # Control de colisiones / duplicados
         if [ -f "$dest_file" ]; then
             echo -e "${YELLOW}[ALERTA] Conflicto de nombre:${NC} '$final_name' ya existe en '$grid_size/$category/'"
-            conflict_filename="CONFLICTO_${folder_name}_${final_name}"
+            conflict_filename="CONFLICTO_${final_name}"
             echo -e "         Guardando como: ${RED}$conflict_filename${NC}"
             cp "$target_sat" "$target_dir/$conflict_filename"
         else
