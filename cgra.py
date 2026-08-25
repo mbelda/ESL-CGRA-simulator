@@ -110,7 +110,7 @@ class CGRA:
                 if op in ['LWD','LWI','SWD','SWI']:
                     nMemOps += 1
                 if op in ['SMUL']:
-                    nMulOps += 3
+                    nMulOps += 1
         maxcycles = 1
         if nMemOps > 0:
             maxcycles = 1 + nMemOps
@@ -333,8 +333,15 @@ class PE:
 
     def slt( val1, val2 ):
         return c_int32(val1 << val2).value
+    
+    def sll( val1, val2 ):
+        return c_int32(val1 << val2).value
 
     def srt( val1, val2 ):
+        interm_result = (c_int32(val1).value & MAX_32b)
+        return c_int32(interm_result >> val2).value
+    
+    def srl( val1, val2 ):
         interm_result = (c_int32(val1).value & MAX_32b)
         return c_int32(interm_result >> val2).value
 
@@ -387,7 +394,9 @@ class PE:
                     'SMUL'      : smul,
                     'FXPMUL'    : fxpmul,
                     'SLT'       : slt,
+                    'SLL'       : sll,
                     'SRT'       : srt,
+                    'SRL'       : srl,
                     'SRA'       : sra,
                     'LOR'       : lor,
                     'LAND'      : land,
