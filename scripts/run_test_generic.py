@@ -40,6 +40,7 @@ def configMemory(
     version_tag,
     config_cols_raw,
 ):
+    # Al estar posicionados en csv_dir, pasamos "." como directorio
     kernel_clear_memory(".", version=version_tag)
 
     first_addr_inputX = first_addr
@@ -141,7 +142,7 @@ def main():
         "--config-json", required=True, help="JSON con el config_cols"
     )
     parser.add_argument(
-        "--benchmark-dir", required=True, help="Directorio del benchmark"
+        "--benchmark-dir", required=True, help="Directorio del benchmark (raíz del modo)"
     )
     parser.add_argument("--ni", type=int, required=True, help="Dimensión NI")
     parser.add_argument("--nj", type=int, required=True, help="Dimensión NJ")
@@ -149,13 +150,17 @@ def main():
 
     args = parser.parse_args()
 
-    # Cambiar el directorio de trabajo a la carpeta contenedora del benchmark
-    os.chdir(args.benchmark_dir)
+    benchmark_dir = os.path.abspath(args.benchmark_dir)
+    csv_dir = os.path.join(benchmark_dir, "csv")
+    config_json_path = os.path.abspath(args.config_json)
+
+    # Nos posicionamos directamente en csv/ para resolver las instrucciones y ficheros auxiliares
+    os.chdir(csv_dir)
 
     version_tag = f"_{args.version_tag}"
-    log_file_path = Path(f"execution{version_tag}.log")
+    log_file_path = os.path.join(benchmark_dir, f"execution{version_tag}.log")
 
-    with open(args.config_json, "r") as jf:
+    with open(config_json_path, "r") as jf:
         cfg_data = json.load(jf)
         config_cols_raw = cfg_data["config_cols"]
 
@@ -183,7 +188,7 @@ def main():
                 version_tag,
                 config_cols_raw,
             )
-            runKernel(load_addrs, version_tag, max_it=200000, printVal=1)
+            runKernel(load_addrs, version_tag, max_it=200000000, printVal=1)
 
             first_addr_inputX = first_addr
             first_addr_inputY = first_addr_inputX + (NI * NK * 4)

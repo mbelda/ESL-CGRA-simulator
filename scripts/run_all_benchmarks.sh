@@ -2,10 +2,11 @@
 
 GRID_SIZE=$1
 TARGET_FOLDER=$2
+SPECIFIC_FILE=$3
 
 if [ -z "$GRID_SIZE" ] || [ -z "$TARGET_FOLDER" ]; then
     echo "Error: Debes indicar el tamaño de la malla y el tipo de carpeta a ejecutar."
-    echo "Uso: $0 <3x3|4x4|5x5|8x8> <kernel|baseline|nonkernel>"
+    echo "Uso: $0 <3x3|4x4|5x5|8x8> <kernel|baseline|nonkernel> [nombre_archivo.sat]"
     exit 1
 fi
 
@@ -21,6 +22,9 @@ PYTHON_CMD="conda run -n core-v-mini-mcu python3"
 
 BASE_BENCHMARKS_DIR="$PROJECT_ROOT/benchmarks/compigra_kernel/nonkernel_residual"
 TARGET_DIR="$BASE_BENCHMARKS_DIR/$GRID_SIZE/$TARGET_FOLDER"
+SAT_DIR="$TARGET_DIR/sat"
+CSV_DIR="$TARGET_DIR/csv"
+
 SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 SUMMARY_CSV="$BASE_BENCHMARKS_DIR/summary_metrics.csv"
 HEADER_FUNC="void mmul_base(int inputX[NI][NK], int inputY[NK][NJ], int output[NI][NJ])"
@@ -31,10 +35,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-if [ ! -d "$TARGET_DIR" ]; then
-    echo -e "${RED}Error: El directorio destino no existe: $TARGET_DIR${NC}"
+if [ ! -d "$SAT_DIR" ]; then
+    echo -e "${RED}Error: El directorio de archivos SAT no existe: $SAT_DIR${NC}"
     exit 1
 fi
+
+mkdir -p "$CSV_DIR"
 
 if [ ! -f "$SUMMARY_CSV" ]; then
     echo "Grid_Size,Benchmark,Execution_Cycles,Config_Cycles,Total_Cycles,Status" > "$SUMMARY_CSV"
@@ -48,17 +54,34 @@ fi
 
 echo -e "${BLUE}======================================================${NC}"
 echo -e "${BLUE} PROCESANDO: Malla $GRID_SIZE | Modo: $TARGET_FOLDER ${NC}"
-echo -e "${BLUE} Ruta Target: $TARGET_DIR ${NC}"
+echo -e "${BLUE} Ruta SAT: $SAT_DIR ${NC}"
+echo -e "${BLUE} Ruta CSV: $CSV_DIR ${NC}"
+if [ -n "$SPECIFIC_FILE" ]; then
+    echo -e "${BLUE} Filtro de archivo: $SPECIFIC_FILE ${NC}"
+fi
 echo -e "${BLUE} Ejecutor Python: $(basename $RUNNER_SCRIPT) ${NC}"
 echo -e "${BLUE}======================================================${NC}"
 
-find "$TARGET_DIR" -type f -name "*.sat" | while read -r sat_path; do
-    folder_path=$(dirname "$sat_path")
+# Filtrar por el 3er argumento si ha sido provisto
+if [ -n "$SPECIFIC_FILE" ]; then
+    # Asegurar extensión .sat si no se indicó en el parámetro
+    [[ "$SPECIFIC_FILE" != *.sat ]] && SPECIFIC_FILE="${SPECIFIC_FILE}.sat"
+    
+    if [ ! -f "$SAT_DIR/$SPECIFIC_FILE" ]; then
+        echo -e "${RED}Error: El archivo especificado no existe: $SAT_DIR/$SPECIFIC_FILE${NC}"
+        exit 1
+    fi
+    SAT_FILES=("$SAT_DIR/$SPECIFIC_FILE")
+else
+    mapfile -t SAT_FILES < <(find "$SAT_DIR" -type f -name "*.sat")
+fi
+
+for sat_path in "${SAT_FILES[@]}"; do
     sat_filename=$(basename "$sat_path")
     base_version_tag="${sat_filename%.sat}"
     
     base_inst_csv_filename="instructions_${base_version_tag}.csv"
-    base_inst_csv_path="$folder_path/$base_inst_csv_filename"
+    base_inst_csv_path="$CSV_DIR/$base_inst_csv_filename"
 
     # PASO 0: Normalización (solo si no es modo kernel)
     if [ "$TARGET_FOLDER" != "kernel" ]; then
@@ -89,9 +112,9 @@ with open(sat_file, "w") as f:
         echo -e "  ${YELLOW}0. Omitiendo normalización de .sat (Modo kernel)${NC}"
     fi
 
-    # PASO 1: Generar CSV de instrucciones base
-    echo -e "  ${YELLOW}1. Generando CSV de instrucciones ($base_inst_csv_filename)...${NC}"
-    $PYTHON_CMD "$SCRIPTS_DIR/sat_to_csv.py" -i "$sat_path" -o "$base_inst_csv_filename"
+    # PASO 1: Generar CSV de instrucciones base dentro de la carpeta csv/
+    echo -e "  ${YELLOW}1. Generando CSV de instrucciones en csv/$base_inst_csv_filename...${NC}"
+    $PYTHON_CMD "$SCRIPTS_DIR/sat_to_csv.py" -i "$sat_path" -o "$base_inst_csv_path"
 
     if [ ! -f "$base_inst_csv_path" ]; then
         echo -e "  ${RED}Error: No se pudo generar el archivo CSV en '$base_inst_csv_path'${NC}"
@@ -101,7 +124,6 @@ with open(sat_file, "w") as f:
 
     # LÓGICA DE EJECUCIÓN
     if [ "$TARGET_FOLDER" == "kernel" ]; then
-        # Lista fija de canales y de NKs para la categoría kernel
         CHANNELS=("c1:9:12" "c2:15:31" "c3:24:64" "c4:47:64")
         NK_VALUES=(11 23 33 65)
 
@@ -112,26 +134,26 @@ with open(sat_file, "w") as f:
 
                 echo -e "\n${BLUE}[+] Procesando Kernel (${GRID_SIZE}):${NC} $curr_tag (NI=$curr_NI, NJ=$curr_NJ, NK=$curr_NK)"
 
-                # Crear copia del CSV de instrucciones con la etiqueta completa
-                channel_inst_csv_path="$folder_path/instructions_${curr_tag}.csv"
+                # Crear copia del CSV de instrucciones con la etiqueta completa en csv/
+                channel_inst_csv_path="$CSV_DIR/instructions_${curr_tag}.csv"
                 cp "$base_inst_csv_path" "$channel_inst_csv_path"
 
-                # Generar Config JSON
-                json_cfg="$folder_path/${curr_tag}_cfg.json"
+                # Generar Config JSON en la raíz del benchmark
+                json_cfg="$TARGET_DIR/${curr_tag}_cfg.json"
                 $PYTHON_CMD "$SCRIPTS_DIR/compi_to_OE_csv.py" "$channel_inst_csv_path" --header "$HEADER_FUNC" --json-out "$json_cfg"
 
                 # Ejecutar
                 $PYTHON_CMD "$RUNNER_SCRIPT" \
                     --version-tag "$curr_tag" \
                     --config-json "$json_cfg" \
-                    --benchmark-dir "$folder_path" \
+                    --benchmark-dir "$TARGET_DIR" \
                     --ni "$curr_NI" --nj "$curr_NJ" --nk "$curr_NK"
 
-                # Limpieza
+                # Limpieza de archivos temporales
                 rm -f "$json_cfg" "$channel_inst_csv_path"
 
                 # Guardar métricas
-                log_file="$folder_path/execution_${curr_tag}.log"
+                log_file="$TARGET_DIR/execution_${curr_tag}.log"
                 if [ -f "$log_file" ] && grep -q "END" "$log_file"; then
                     exec_cycles=$(grep "Execution accurate cycles:" "$log_file" | awk -F': ' '{print $2}' | tr -d '\r')
                     config_cycles=$(grep "Config cycles:" "$log_file" | awk -F': ' '{print $2}' | tr -d '\r')
@@ -149,23 +171,32 @@ with open(sat_file, "w") as f:
         # LÓGICA HABITUAL PARA BASELINE Y NONKERNEL
         if [[ "$sat_filename" =~ _[iI]([0-9]+)_[jJ]([0-9]+)_[kK]([0-9]+) ]]; then
             NI="${BASH_REMATCH[1]}"; NJ="${BASH_REMATCH[2]}"; NK="${BASH_REMATCH[3]}"
+        elif [[ "$sat_filename" =~ _c([1-4])_g[0-9]+_k([0-9]+) ]]; then
+            c_num="${BASH_REMATCH[1]}"
+            NK="${BASH_REMATCH[2]}"
+            case $c_num in
+                1) NI=9; NJ=12 ;;
+                2) NI=15; NJ=31 ;;
+                3) NI=24; NJ=64 ;;
+                4) NI=47; NJ=64 ;;
+            esac
         else
             g_val="${GRID_SIZE%%x*}"
             NI="$g_val"; NJ="$g_val"; NK="$g_val"
         fi
 
-        json_cfg="$folder_path/${base_version_tag}_cfg.json"
+        json_cfg="$TARGET_DIR/${base_version_tag}_cfg.json"
         $PYTHON_CMD "$SCRIPTS_DIR/compi_to_OE_csv.py" "$base_inst_csv_path" --header "$HEADER_FUNC" --json-out "$json_cfg"
 
         $PYTHON_CMD "$RUNNER_SCRIPT" \
             --version-tag "$base_version_tag" \
             --config-json "$json_cfg" \
-            --benchmark-dir "$folder_path" \
+            --benchmark-dir "$TARGET_DIR" \
             --ni "$NI" --nj "$NJ" --nk "$NK"
 
         rm -f "$json_cfg"
 
-        log_file="$folder_path/execution_${base_version_tag}.log"
+        log_file="$TARGET_DIR/execution_${base_version_tag}.log"
         if [ -f "$log_file" ] && grep -q "END" "$log_file"; then
             exec_cycles=$(grep "Execution accurate cycles:" "$log_file" | awk -F': ' '{print $2}' | tr -d '\r')
             config_cycles=$(grep "Config cycles:" "$log_file" | awk -F': ' '{print $2}' | tr -d '\r')
