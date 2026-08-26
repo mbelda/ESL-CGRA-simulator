@@ -70,6 +70,8 @@ class CGRA:
         self.instr2exec = 0
         self.cycles     = 0
         self.aproxcycles = 0
+        self.aproxMemCycles = 0
+        self.aproxArithCycles = 0
         if read_addrs is not None and len(read_addrs) == N_COLS: 
             self.load_addr = read_addrs
         else:   
@@ -94,6 +96,8 @@ class CGRA:
         config_cycles = len(self.instrs)*N_COLS
         print("Config cycles: " + str(config_cycles))
         print("Total cycles: " + str(config_cycles + self.aproxcycles))
+        print("Memory cycles: " + str(self.aproxMemCycles))
+        print("Arithmetic cycles: " + str(self.aproxArithCycles))
 
         return self.memory
     
@@ -116,6 +120,12 @@ class CGRA:
             maxcycles = 1 + nMemOps
         if nMulOps > 0:
             maxcycles = max(maxcycles, 3)
+
+        # Update arith/mem cycles
+        if nMemOps > 0:
+            self.aproxMemCycles += 1 + nMemOps
+        else:
+            self.aproxArithCycles += maxcycles
         
         return maxcycles
                     
