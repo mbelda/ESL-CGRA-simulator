@@ -1,0 +1,986 @@
+T = 0
+NOP                               
+LWD R0, ARG2                      
+NOP                               
+NOP                               
+NOP                               
+LWD R1, ARG4                      
+SADD ROUT 16 ZERO                 
+SADD R0 ZERO ZERO                 
+NOP                               
+NOP                               
+LWD R0, ARG1                      
+LWD R0, ARG0                      
+NOP                               
+NOP                               
+LWD R0, ARG2                      
+SADD R0 ZERO ZERO                 
+T = 1
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCT 12                   
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 2
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R1 344 RCL                   
+NOP                               
+NOP                               
+SADD ROUT 344 RCT                 
+NOP                               
+T = 3
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCR ZERO                
+NOP                               
+NOP                               
+T = 4
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 RCR ZERO                  
+JUMP 0 5                          
+NOP                               
+NOP                               
+T = 5
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT ZERO 24                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 6
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+BGE R0 RCB 23                     
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 7
+NOP                               
+NOP                               
+SADD R0 ZERO ZERO                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 ZERO 24                   
+NOP                               
+JUMP 0 8                          
+T = 8
+NOP                               
+NOP                               
+SADD ROUT R0 ZERO                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+T = 9
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCT RCL                 
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCB 1                   
+NOP                               
+T = 10
+SLL ROUT RCL 2                    
+NOP                               
+SADD ROUT RCT ZERO                
+SMUL ROUT RCL 24                  
+NOP                               
+NOP                               
+SLL ROUT RCT 2                    
+SMUL ROUT R0 24                   
+NOP                               
+NOP                               
+SLL ROUT RCT 2                    
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+T = 11
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCT RCL                 
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT R0 RCT                  
+SADD ROUT R0 RCL                  
+NOP                               
+BGE RCR R0 19                     
+SADD ROUT RCB 1                   
+SADD ROUT RCB R0                  
+T = 12
+SLL ROUT RCL 2                    
+SADD ROUT R0 RCL                  
+SADD ROUT RCT ZERO                
+SMUL ROUT RCL 24                  
+NOP                               
+NOP                               
+SLL ROUT RCT 2                    
+SMUL ROUT R0 24                   
+LWI ROUT RCL                      
+LWI ROUT RCR                      
+SLL ROUT RCT 2                    
+NOP                               
+SLL ROUT RCL 2                    
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+T = 13
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCT RCL                 
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+SSUB ROUT RCL ROUT                
+SADD ROUT R0 RCT                  
+SADD ROUT R0 RCL                  
+SADD ROUT ROUT R0                 
+BGE RCR R0 16                     
+SADD ROUT RCB 1                   
+SADD ROUT RCB R0                  
+T = 14
+SLL ROUT RCL 2                    
+SADD ROUT R0 RCL                  
+SADD ROUT RCT ZERO                
+SMUL ROUT RCL 24                  
+NOP                               
+SWI RCB RCT                       
+SLL ROUT RCT 2                    
+SMUL ROUT R0 24                   
+LWI ROUT RCL                      
+LWI ROUT RCR                      
+SLL ROUT RCT 2                    
+NOP                               
+SLL ROUT RCL 2                    
+SWI RCT RCL                       
+NOP                               
+SMUL ROUT R0 24                   
+T = 15
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCT RCL                 
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+SSUB ROUT RCL ROUT                
+SADD ROUT R0 RCT                  
+SADD ROUT R0 RCL                  
+SADD ROUT ROUT R0                 
+BLT RCR R0 14                     
+SADD ROUT RCB 1                   
+SADD ROUT RCB R0                  
+T = 16
+NOP                               
+SADD ROUT R0 RCL                  
+NOP                               
+NOP                               
+NOP                               
+SWI RCB RCT                       
+NOP                               
+NOP                               
+LWI ROUT RCL                      
+LWI R0 RCR                        
+NOP                               
+NOP                               
+SLL R1 RCL 2                      
+SWI RCT RCL                       
+NOP                               
+NOP                               
+T = 17
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SSUB ROUT RCL R0                  
+NOP                               
+NOP                               
+SADD ROUT R1 R0                   
+NOP                               
+NOP                               
+NOP                               
+T = 18
+JUMP 0 22                         
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SWI RCB RCT                       
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SWI RCT RCL                       
+NOP                               
+NOP                               
+T = 19
+NOP                               
+SADD ROUT R0 RCL                  
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+LWI ROUT RCL                      
+LWI R0 RCR                        
+NOP                               
+NOP                               
+SLL R1 RCL 2                      
+NOP                               
+NOP                               
+NOP                               
+T = 20
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SSUB ROUT RCL R0                  
+NOP                               
+NOP                               
+SADD ROUT R1 R0                   
+NOP                               
+NOP                               
+NOP                               
+T = 21
+JUMP 0 22                         
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SWI RCB RCT                       
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SWI RCT RCL                       
+NOP                               
+NOP                               
+T = 22
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 R0 1                      
+NOP                               
+NOP                               
+JUMP 0 5                          
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 R0 1                      
+T = 23
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 ZERO ZERO                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+JUMP 0 24                         
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 24
+NOP                               
+SADD ROUT ZERO 24                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 25
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+BGE R0 RCT 57                     
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 26
+NOP                               
+NOP                               
+SADD ROUT ZERO ZERO               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 27
+NOP                               
+SADD R0 RCR ZERO                  
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+JUMP 0 28                         
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 28
+SADD ROUT ZERO 24                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 29
+NOP                               
+BGE R0 RCL 56                     
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 30
+SADD R0 ZERO ZERO                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 ZERO 24                   
+NOP                               
+JUMP 0 31                         
+SADD R0 ZERO ZERO                 
+T = 31
+SADD ROUT R0 ZERO                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 32
+SADD ROUT ROUT 1                  
+SMUL ROUT RCL 24                  
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 33
+NOP                               
+SADD ROUT ROUT R0                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+BGE RCB R0 45                     
+NOP                               
+NOP                               
+NOP                               
+T = 34
+SADD ROUT ROUT ZERO               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+NOP                               
+SLL ROUT RCR 2                    
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCB 2                    
+NOP                               
+NOP                               
+T = 35
+SADD ROUT ROUT 1                  
+SMUL ROUT RCL 24                  
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCT R1                  
+NOP                               
+NOP                               
+SADD ROUT R0 RCL                  
+NOP                               
+T = 36
+NOP                               
+SADD ROUT ROUT R0                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+LWI ROUT ROUT                     
+BGE RCB R0 40                     
+NOP                               
+LWI ROUT ROUT                     
+SADD R0 R0 ZERO                   
+T = 37
+SADD ROUT ROUT ZERO               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+NOP                               
+SLL ROUT RCR 2                    
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCB 2                    
+NOP                               
+SMUL ROUT RCT RCL                 
+T = 38
+SADD ROUT ROUT 1                  
+SMUL ROUT RCL 24                  
+NOP                               
+NOP                               
+SADD ROUT RCR RCT                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCT R1                  
+NOP                               
+NOP                               
+SADD ROUT R0 RCL                  
+SADD ROUT R0 ROUT                 
+T = 39
+NOP                               
+SADD ROUT ROUT R0                 
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+LWI ROUT ROUT                     
+BLT RCB R0 37                     
+NOP                               
+LWI ROUT ROUT                     
+SADD R0 ROUT ZERO                 
+T = 40
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCR 2                    
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCB 2                    
+NOP                               
+SMUL R1 RCT RCL                   
+T = 41
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 RCT R1                    
+NOP                               
+NOP                               
+SADD R1 R0 RCL                    
+SADD R0 R0 R1                     
+T = 42
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+LWI ROUT R0                       
+NOP                               
+NOP                               
+LWI ROUT R1                       
+SADD R0 R0 ZERO                   
+T = 43
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL R1 RCT RCL                   
+T = 44
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+JUMP 0 50                         
+NOP                               
+NOP                               
+SADD R0 R0 R1                     
+T = 45
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCR 2                    
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SLL ROUT RCB 2                    
+NOP                               
+NOP                               
+T = 46
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 RCT R1                    
+NOP                               
+NOP                               
+SADD R1 R0 RCL                    
+NOP                               
+T = 47
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+LWI ROUT R0                       
+NOP                               
+NOP                               
+LWI ROUT R1                       
+SADD R1 R0 ZERO                   
+T = 48
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL R0 RCT RCL                   
+T = 49
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+JUMP 0 50                         
+NOP                               
+NOP                               
+SADD R0 R1 R0                     
+T = 50
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SMUL ROUT R0 24                   
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 51
+NOP                               
+SADD ROUT RCB R0                  
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 52
+NOP                               
+SADD R0 R0 1                      
+NOP                               
+NOP                               
+NOP                               
+SLL R2 RCT 2                      
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT R0 ZERO                 
+T = 53
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT R1 R2                   
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD ROUT RCL ZERO                
+NOP                               
+NOP                               
+NOP                               
+T = 54
+NOP                               
+SADD ROUT RCB ZERO                
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+T = 55
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+JUMP 0 28                         
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SWI RCL RCB                       
+NOP                               
+NOP                               
+T = 56
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+SADD R0 R0 1                      
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+JUMP 0 24                         
+NOP                               
+NOP                               
+NOP                               
+T = 57
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+NOP                               
+EXIT                              
+NOP                               
+NOP                               
+NOP                               

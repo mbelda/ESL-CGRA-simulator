@@ -1,23 +1,23 @@
 import numpy as np
 from ctypes import c_int32
 import csv
+import os.path
 
 from kernels import *
 
-# CGRA from left to right, top to bottom
-N_ROWS      = 4
-N_COLS      = 4
-INSTR_SIZE  = N_ROWS+1
-MAX_COL     = N_COLS - 1
-MAX_ROW     = N_ROWS - 1
+N_ROWS = 4
+N_COLS = 4
+INSTR_SIZE = N_ROWS + 1
+MAX_COL = N_COLS - 1
+MAX_ROW = N_ROWS - 1
 
 PRINT_OUTS  = 1
 
 MAX_32b = 0xFFFFFFFF
 
 
-srcs    = ['ZERO', 'SELF', 'RCL', 'RCR', 'RCT', 'RCB',  'R0', 'R1', 'R2', 'R3', 'IMM']
-dsts    = ['SELF', 'RCL', 'RCR', 'RCT', 'RCB','R0', 'R1', 'R2', 'R3']
+srcs    = ['ZERO', 'SELF', 'RCL', 'RCR', 'RCT', 'RCB', 'R0', 'R1', 'R2', 'R3', 'IMM']
+dsts    = ['SELF', 'RCL', 'RCR', 'RCT', 'RCB', 'R0', 'R1', 'R2', 'R3']
 regs    = dsts[-4:]
 
 class INSTR:
@@ -28,7 +28,6 @@ class INSTR:
 def ker_parse( data ):
     instrs = int(len(data)/( INSTR_SIZE  )) # Always have a CSV with as many csv-columns as CGA-columns. Each instruction starts with the instruction timestamp i nthe first column. The next instruction must be immediately after the last row of this instruction.
     return [ INSTR( data[r_i*INSTR_SIZE:(r_i+1)*INSTR_SIZE][0:] ) for r_i in range(instrs) ]
-
 
 def print_out( prs, outs, insts, ops, reg ):
     if PRINT_OUTS:
@@ -59,7 +58,7 @@ def print_out( prs, outs, insts, ops, reg ):
 
 
 class CGRA:
-    def __init__( self, kernel, memory, inputs, outputs ):
+    def __init__( self, kernel, memory, read_addrs, write_addrs):
         self.cells = []
         for r in range(N_ROWS):
             list = []
@@ -68,25 +67,68 @@ class CGRA:
             self.cells.append(list)
         self.instrs     = ker_parse( kernel )
         self.memory     = memory
-        self.inputs     = inputs
-        self.outputs    = outputs
         self.instr2exec = 0
         self.cycles     = 0
-        self.load_idx   = [0]*N_COLS
-        self.store_idx  = [0]*N_COLS
+        self.aproxcycles = 0
+        self.aproxMemCycles = 0
+        self.aproxArithCycles = 0
+        if read_addrs is not None and len(read_addrs) == N_COLS: 
+            self.load_addr = read_addrs
+        else:   
+            self.load_addr = [0]*N_COLS
+        if write_addrs is not None and len(write_addrs) == N_COLS: 
+            self.store_addr = write_addrs
+        else:   
+            self.store_addr = [0]*N_COLS
         self.exit       = False
 
     def run( self, pr, limit ):
         steps = 0
         while not self.step(pr):
-            print("-------")
+            if (PRINT_OUTS):
+                print("-------")
             steps += 1
             if steps > limit:
                 print("EXECUTION LIMIT REACHED (",limit,"steps)")
                 print("Extend the execution by calling the run with argument limit=<steps>.")
-                break
-        return self.outputs, self.memory
+                return self.memory
+        print("Execution accurate cycles: " + str(self.aproxcycles))
+        config_cycles = len(self.instrs)*N_COLS
+        print("Config cycles: " + str(config_cycles))
+        print("Total cycles: " + str(config_cycles + self.aproxcycles))
+        print("Memory cycles: " + str(self.aproxMemCycles))
+        print("Arithmetic cycles: " + str(self.aproxArithCycles))
 
+        return self.memory
+    
+    def maxCyclesThisPC(self):
+        nMemOps = 0
+        nMulOps = 0
+        for r in range(N_ROWS):
+            for c in range(N_COLS):
+                instr =  (self.instrs[self.instr2exec].ops[r][c]).replace(',', ' ').split()
+                try:
+                    op = instr[0]
+                except:
+                    op = instr
+                if op in ['LWD','LWI','SWD','SWI']:
+                    nMemOps += 1
+                if op in ['SMUL']:
+                    nMulOps += 1
+        maxcycles = 1
+        if nMemOps > 0:
+            maxcycles = 1 + nMemOps
+        if nMulOps > 0:
+            maxcycles = max(maxcycles, 3)
+
+        # Update arith/mem cycles
+        if nMemOps > 0:
+            self.aproxMemCycles += 1 + nMemOps
+        else:
+            self.aproxArithCycles += maxcycles
+        
+        return maxcycles
+                    
     def step( self, prs="ROUT" ):
         for r in range(N_ROWS):
             for c in range(N_COLS):
@@ -105,8 +147,12 @@ class CGRA:
             reg     = [[ self.cells[r][i].regs[regs[x]]   for i in range(N_COLS) ] for x in range(len(regs)) ]
             print_out( prs, outs, insts, ops, reg )
 
+        ncyclesthisPc = self.maxCyclesThisPC()
+        if PRINT_OUTS: print("Aprox cycles this pc: " + str(ncyclesthisPc))
+        self.aproxcycles += ncyclesthisPc
         self.instr2exec += 1
         self.cycles += 1
+        
         return self.exit
 
     def get_neighbour_address( self, r, c, dir ):
@@ -126,28 +172,40 @@ class CGRA:
         n_r, n_c = self.get_neighbour_address( r, c, dir )
         return self.cells[n_r][n_c].get_flag( flag )
 
-    def load_direct( self, c ):
-        ret = self.inputs[  self.load_idx[c]][ c ]
-        self.load_idx[c] += 1
-        return int(ret)
+    def load_direct(self, c, incr):
+        ret = -1
+        for row in self.memory:
+            if row[0] == self.load_addr[c]:
+                ret = row[1]
+                break
+        self.load_addr[c] += incr
+        return ret
 
-    def store_direct( self, c, val ):
-        if self.store_idx[c] >= len(self.outputs): self.outputs.append([0]*N_COLS)
-        self.outputs[ self.store_idx[c] ][c] = val
-        self.store_idx[c] += 1
+    def store_direct( self, c, val, incr ):
+        replaced = False
+        # Skip element 0 since it is the title of the column
+        for i in range(0,len(self.memory)):
+            if self.memory[i][0] == self.store_addr[c]:
+                self.memory[i][1] = val
+                replaced = True
+                break
+        if not replaced:
+            self.memory.append([self.store_addr[c], val])
+        self.store_addr[c] += incr
+        return
 
-    def load_indirect( self, add ):
-        for row in self.memory[1:]:
-            if int(row[0]) == add:
-                return int(row[1])
+    def load_indirect( self, addr ):
+        for row in self.memory:
+            if row[0] == addr:
+                return row[1]
         return -1
 
-    def store_indirect( self, add, val):
-        for i in range(1,len(self.memory)):
-            if int(self.memory[i][0]) == add:
+    def store_indirect( self, addr, val):
+        for i in range(0,len(self.memory)):
+            if self.memory[i][0] == addr:
                 self.memory[i][1] = val
                 return
-        self.memory.append([add, val])
+        self.memory.append([addr, val])
         return
 
 class PE:
@@ -237,32 +295,37 @@ class PE:
 
         elif self.op in self.ops_lwd:
             des = instr[1]
-            ret = self.parent.load_direct( self.col )
+            incr = self.fetch_val(instr[2])
+            ret = self.parent.load_direct( self.col, incr )
             if des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_swd:
             val = self.fetch_val( instr[1] )
-            self.parent.store_direct( self.col, val )
+            incr = self.fetch_val(instr[2])
+            self.parent.store_direct( self.col, val, incr )
 
         elif self.op in self.ops_lwi:
             des = instr[1]
-            add = self.fetch_val( instr[2] )
-            ret = self.parent.load_indirect(add)
+            addr = self.fetch_val( instr[2] )
+            ret = self.parent.load_indirect(addr)
             if des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_swi:
-            add = self.fetch_val( instr[1] )
-            val = self.fetch_val( instr[2] )
-            self.parent.store_indirect( add, val )
+            addr = self.fetch_val( instr[2] )
+            val = self.fetch_val( instr[1] )
+            self.parent.store_indirect( addr, val )
             pass
 
         elif self.op in self.ops_nop:
             pass # Intentional
 
         elif self.op in self.ops_jump:
-            self.flags['branch'] = val1
+            val1    = self.fetch_val( instr[1] )
+            val2    = self.fetch_val( instr[2] )
+            self.jump( val1 + val2)
+            self.out = self.out # Intentional ROUT not modified
 
         elif self.op in self.ops_exit:
             self.flags['exit'] = 1
@@ -282,8 +345,15 @@ class PE:
 
     def slt( val1, val2 ):
         return c_int32(val1 << val2).value
+    
+    def sll( val1, val2 ):
+        return c_int32(val1 << val2).value
 
     def srt( val1, val2 ):
+        interm_result = (c_int32(val1).value & MAX_32b)
+        return c_int32(interm_result >> val2).value
+    
+    def srl( val1, val2 ):
         interm_result = (c_int32(val1).value & MAX_32b)
         return c_int32(interm_result >> val2).value
 
@@ -327,13 +397,18 @@ class PE:
 
     def blt( self,  val1, val2, branch ):
         self.flags['branch'] = branch if val1 < val2 else self.flags['branch']
+    
+    def jump( self, branch):
+        self.flags['branch'] = branch
 
     ops_arith   = { 'SADD'      : sadd,
                     'SSUB'      : ssub,
                     'SMUL'      : smul,
                     'FXPMUL'    : fxpmul,
                     'SLT'       : slt,
+                    'SLL'       : sll,
                     'SRT'       : srt,
+                    'SRL'       : srl,
                     'SRA'       : sra,
                     'LOR'       : lor,
                     'LAND'      : land,
@@ -359,25 +434,52 @@ class PE:
     ops_jump    = { 'JUMP'      : '' }
     ops_exit    = { 'EXIT'      : '' }
 
-def run( kernel, version="", pr="ROUT", limit=100 ):
+def estimatedConfigCycles( kernel, version=""):
     ker = []
-    inp = []
-    oup = []
-    mem = []
-
+    # Read the instructions file
     with open( kernel + "/"+FILENAME_INSTR+version+EXT, 'r') as f:
         for row in csv.reader(f): ker.append(row)
-    with open( kernel + "/"+FILENAME_INP+EXT, 'r') as f:
-        for row in csv.reader(f): inp.append(row)
-    with open( kernel + "/"+FILENAME_MEM+EXT, 'r') as f:
-        for row in csv.reader(f): mem.append(row)
+    instrs = ker_parse(ker)
+    return len(instrs)*N_COLS
 
-    oup, mem = CGRA( ker, mem, inp, oup ).run(pr, limit)
 
-    with open( kernel + "/"+FILENAME_MEM_O+EXT, 'w+') as f:
-        for row in mem: csv.writer(f).writerow(row)
-    with open( kernel + "/"+FILENAME_OUP+EXT, 'w+') as f:
-        for row in oup: csv.writer(f).writerow(row)
+def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=None, printVal=1 ):
+    global PRINT_OUTS
+    PRINT_OUTS = printVal
+    ker = []
+    mem = []
 
-    print("\n\nEND")
+    # Read the instructions file
+    path_completo = os.path.join(kernel, f"{FILENAME_INSTR}{version}{EXT}")
+
+    with open(path_completo, 'r') as f:
+        for row in csv.reader(f):
+            ker.append(row)
+    
+    # Create an empty memory file if there is not any
+    if not os.path.isfile(kernel + "/"+FILENAME_MEM+version+EXT):
+        kernel_clear_memory(kernel, version)
+
+    # Read the memory file
+    with open( kernel + "/"+FILENAME_MEM+version+EXT, 'r') as f:
+        csv_reader = csv.reader(f, delimiter=',')
+        # Skip the first row (header)
+        next(csv_reader, None)
+        for row in csv_reader:
+            try:
+                mem.append([int(row[0]), int(row[1])])
+            except ValueError:
+                print("Error: Values in CSV file are not integers.")
+                return None
+    
+    # Run the kernel
+    cgra = CGRA(ker, mem, load_addrs, store_addrs)
+    mem = cgra.run(pr, limit)
+
+    # Store the output sorted
+    sorted_mem = sorted(mem, key=lambda x: x[0])
+    with open( kernel + "/"+FILENAME_MEM_O+version+EXT, 'w+') as f:
+        for row in sorted_mem: csv.writer(f).writerow(row)
+
+    print("END")
 
