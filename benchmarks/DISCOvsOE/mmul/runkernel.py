@@ -7,8 +7,9 @@ import random
 from cgra import *
 from kernels import *
 
-kernel_name = "benchmarks/mmul/4x4/mmul"
+kernel_name = "benchmarks/DISCOvsOE/mmul"
 version = ""
+srf_init = None
 
 # Global variables
 CGRA_N_ROWS = 4
@@ -76,11 +77,14 @@ def runKernel(load_addrs, max_it=1000):
     pr = []
     if DEBUG: 
         pr = ["ROUT", "INST"]
-    run(kernel_name,
+    return run(kernel_name,
         pr=pr,
         load_addrs=load_addrs,
         version=version,
-        limit=max_it)
+        limit=max_it,
+        srf_init=srf_init,
+        printVal=1 if DEBUG else 0,
+        return_cgra=True)
 
 
 def getResult(first_addr_C, end_addr_C, rowsA, colsB):
@@ -114,22 +118,83 @@ parser = argparse.ArgumentParser()
 parser.add_argument("rowsA", type=int)
 parser.add_argument("colsA", type=int)
 parser.add_argument("colsB", type=int)
+parser.add_argument("--version", choices=("original", "srf_offsets", "srf_base"), default="original")
+parser.add_argument("--seed", type=int, default=12345,
+                    help="seed used to generate the same A/B/C matrices across versions")
 args = parser.parse_args()
 
 rowsA, colsA, colsB = args.rowsA, args.colsA, args.colsB
+version = {"original": "", "srf_offsets": "_srf_offsets", "srf_base": "_srf_base"}[args.version]
 logfile = f"out_mmul_{rowsA}x{colsA}x{colsB}.log"
 
-with open(logfile, "w") as log, redirect_stdout(log):
 
+def configMemory_srf_offsets(A_data, B_data, C_data, rowsA, colsA, colsB):
+    """Configure matrix memory and dimension-derived address offsets in each SRF bank."""
+    global srf_init
+    addrs = configMemory(A_data, B_data, C_data, rowsA, colsA, colsB)
+    common = {"SRF0": colsA, "SRF1": -4 * colsB,
+              "SRF2": -4 * colsA * colsB + 16, "SRF3": -4 * colsA,
+              "SRF4": 16 * colsB, "SRF5": -4 * rowsA,
+              "SRF6": 16 * colsA}
+    srf_init = [common.copy() for _ in range(CGRA_N_COLS)]
+    return addrs
+
+
+def configMemory_srf_base(A_data, B_data, C_data, rowsA, colsA, colsB):
+    """Place each RC's initial R2 base/config value in its column SRF."""
+    global srf_init
+    kernel_clear_memory(kernel_name, version=version)
+    n_cols_blocks = colsB // CGRA_N_ROWS
+    n_rows_blocks = rowsA // CGRA_N_ROWS
+    addr_a = first_addr
+    addr_b = addr_a + rowsA * colsA * 4
+    addr_c = addr_b + colsA * colsB * 4
+    kernel_add_memory_region(kernel_name, addr_a, A_data, version=version)
+    kernel_add_memory_region(kernel_name, addr_b, B_data, version=version)
+    kernel_add_memory_region(kernel_name, addr_c, C_data, version=version)
+    # These per-column, per-row values are the original R2 pointer/bound bases.
+    # SRF0-SRF3 keep them; the A-row entry in each column is refreshed at the
+    # row-band transition and then serves as the direct rewind point.
+    row_values = [
+        [addr_b, n_cols_blocks, addr_a + 2 * colsA * 4, addr_c + 3 * colsB * 4],
+        [addr_c + 4, addr_b + 4, colsA, addr_a + 3 * colsA * 4],
+        [addr_a, addr_c + 2 * 4 + colsB * 4, addr_b + 2 * 4, n_cols_blocks],
+        [n_rows_blocks, addr_a + colsA * 4, addr_c + 3 * 4 + 2 * colsB * 4, addr_b + 3 * 4],
+    ]
+    srf_init = []
+    for col in range(CGRA_N_COLS):
+        bank = {f"SRF{row}": row_values[col][row] for row in range(CGRA_N_ROWS)}
+        bank.update({"SRF4": colsA, "SRF5": -4 * colsB,
+                     "SRF6": -4 * colsA * colsB})
+        srf_init.append(bank)
+    # All pointer/configuration state is initialized in SRF; no scalar config
+    # loads occur before entering the kernel.
+    return [0] * CGRA_N_COLS
+
+
+if min(rowsA, colsA, colsB) <= 0 or any(
+        dimension % CGRA_N_ROWS for dimension in (rowsA, colsA, colsB)):
+    parser.error("rowsA, colsA and colsB must be positive multiples of 4")
+
+with open(logfile, "w") as log, redirect_stdout(log):
+    random.seed(args.seed)
     A_data = [random.randint(-10, 10) for _ in range(rowsA * colsA)]
     B_data = [random.randint(-10, 10) for _ in range(colsA * colsB)]
     C_data = [random.randint(-10, 10) for _ in range(rowsA * colsB)]
 
+    if args.version == "srf_offsets":
+        load_addrs = configMemory_srf_offsets(A_data, B_data, C_data,
+                                              rowsA, colsA, colsB)
+    elif args.version == "srf_base":
+        load_addrs = configMemory_srf_base(A_data, B_data, C_data,
+                                           rowsA, colsA, colsB)
+    else:
+        load_addrs = configMemory(A_data, B_data, C_data,
+                                  rowsA, colsA, colsB)
 
-    load_addrs = configMemory(A_data, B_data, C_data,
-                              rowsA, colsA, colsB)
-
-    runKernel(load_addrs, max_it=2_000_000)
+    cgra = runKernel(load_addrs, max_it=2_000_000)
+    if cgra is None or not cgra.exit:
+        raise RuntimeError("CGRA simulation did not reach EXIT before the execution limit")
 
     first_addr_C = first_addr + rowsA * colsA * 4 + colsA * colsB * 4
     result = getResult(first_addr_C,
@@ -150,5 +215,43 @@ with open(logfile, "r") as log:
 
 if errors > 0:
     print(f"Err: {errors}")
+    raise SystemExit(1)
 else:
     print("OK")
+print(f"CYCLES total={len(cgra.instrs) * CGRA_N_COLS + cgra.aproxcycles} "
+      f"config={len(cgra.instrs) * CGRA_N_COLS} execution={cgra.aproxcycles} "
+      f"memory={cgra.aproxMemCycles} arithmetic={cgra.aproxArithCycles}")
+phase_cycles = {"prep": 0, "compute": 0, "load_store": 0, "address_update": 0, "exit": 0}
+if args.version == "srf_offsets":
+    # The fused instruction stream has 17 PCs: setup 0-1, compute 2-7,
+    # load/store 8-11, address updates 12-15, and EXIT at 16.
+    for pc, cycles in cgra.cycles_by_pc.items():
+        if pc <= 1:
+            phase_cycles["prep"] += cycles
+        elif pc <= 7:
+            phase_cycles["compute"] += cycles
+        elif pc <= 11:
+            phase_cycles["load_store"] += cycles
+        elif pc <= 15:
+            phase_cycles["address_update"] += cycles
+        else:
+            phase_cycles["exit"] += cycles
+else:
+    if args.version == "original":
+        orig_pc = {pc: pc for pc in cgra.cycles_by_pc}
+    else:
+        orig_pc = {pc: (pc if pc < 2 else pc + 1 if pc <= 12 else pc + 2)
+                   for pc in cgra.cycles_by_pc}
+    for pc, cycles in cgra.cycles_by_pc.items():
+        source_pc = orig_pc[pc]
+        if source_pc <= 2:
+            phase_cycles["prep"] += cycles
+        elif source_pc <= 8:
+            phase_cycles["compute"] += cycles
+        elif source_pc <= 12:
+            phase_cycles["load_store"] += cycles
+        elif source_pc <= 19:
+            phase_cycles["address_update"] += cycles
+        else:
+            phase_cycles["exit"] += cycles
+print("PHASE_CYCLES " + " ".join(f"{key}={value}" for key, value in phase_cycles.items()))

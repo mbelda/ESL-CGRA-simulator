@@ -2,6 +2,7 @@ import numpy as np
 from ctypes import c_int32
 import csv
 import os.path
+import re
 
 from kernels import *
 
@@ -58,7 +59,7 @@ def print_out( prs, outs, insts, ops, reg ):
 
 
 class CGRA:
-    def __init__( self, kernel, memory, read_addrs, write_addrs):
+    def __init__( self, kernel, memory, read_addrs, write_addrs, srf_init=None):
         self.cells = []
         for r in range(N_ROWS):
             list = []
@@ -67,11 +68,22 @@ class CGRA:
             self.cells.append(list)
         self.instrs     = ker_parse( kernel )
         self.memory     = memory
+        # Keep the first occurrence of each address, matching the linear
+        # lookup behavior while avoiding repeated full-memory scans.
+        self.memory_first_index = {}
+        for index, entry in enumerate(self.memory):
+            self.memory_first_index.setdefault(entry[0], index)
+        self.srf        = [{f"SRF{i}": 0 for i in range(8)} for _ in range(N_COLS)]
+        if srf_init is not None:
+            self.initialize_srf(srf_init)
+        self.srf_snapshot = [bank.copy() for bank in self.srf]
+        self.pending_srf_writes = []
         self.instr2exec = 0
         self.cycles     = 0
         self.aproxcycles = 0
         self.aproxMemCycles = 0
         self.aproxArithCycles = 0
+        self.cycles_by_pc = {}
         if read_addrs is not None and len(read_addrs) == N_COLS: 
             self.load_addr = read_addrs
         else:   
@@ -81,6 +93,77 @@ class CGRA:
         else:   
             self.store_addr = [0]*N_COLS
         self.exit       = False
+
+    def initialize_srf(self, values):
+        """Initialize each column's eight shared SRF registers without cycles.
+
+        ``values`` may be a sequence of four mappings (one per column), each
+        mapping ``SRF0``..``SRF7`` to values, or a mapping keyed by column.
+        Missing registers remain zero.
+        """
+        banks = values.items() if isinstance(values, dict) else enumerate(values)
+        for col, bank_values in banks:
+            col = int(col)
+            if not 0 <= col < N_COLS:
+                raise ValueError(f"Invalid SRF column {col}; valid columns are 0-{N_COLS - 1}")
+            for register, value in bank_values.items():
+                if not re.fullmatch(r"SRF[0-7]", str(register)):
+                    raise ValueError(f"Invalid SRF register {register!r}; valid registers are SRF0-SRF7")
+                self.srf[col][register] = int(value)
+
+    def _srf_cycle_accesses(self, instr, row, col):
+        """Return the SRF accesses made by one PE instruction."""
+        tokens = instr.replace(',', ' ').split()
+        if not tokens:
+            return []
+
+        op = tokens[0]
+        dest_index = None
+        if op in PE.ops_arith or op in PE.ops_cond or op in PE.ops_lwd or op in PE.ops_lwi:
+            dest_index = 1
+
+        accesses = []
+        for index, token in enumerate(tokens[1:], start=1):
+            if not token.startswith('SRF'):
+                continue
+            if not re.fullmatch(r'SRF\d+', token):
+                raise ValueError(
+                    f"Invalid SRF register {token!r} at cycle {self.cycles}, "
+                    f"RC({row},{col}); valid registers are SRF0-SRF7"
+                )
+            if not re.fullmatch(r'SRF[0-7]', token):
+                raise ValueError(
+                    f"Invalid SRF register {token} at cycle {self.cycles}, "
+                    f"RC({row},{col}); valid registers are SRF0-SRF7"
+                )
+            mode = 'write' if index == dest_index else 'read'
+            accesses.append((token, mode, row, col))
+        return accesses
+
+    def validate_srf_cycle(self):
+        """Check all SRF ports before executing any PE in this cycle."""
+        accesses = []
+        for row in range(N_ROWS):
+            for col in range(N_COLS):
+                instr = self.instrs[self.instr2exec].ops[row][col]
+                accesses.extend(self._srf_cycle_accesses(instr, row, col))
+
+        for col in range(N_COLS):
+            writers = [access for access in accesses if access[1] == 'write' and access[3] == col]
+            if len(writers) > 1:
+                locations = ', '.join(f"RC({row},{writer_col})" for _, _, row, writer_col in writers)
+                raise RuntimeError(
+                    f"SRF write conflict at cycle {self.cycles} in column {col}: "
+                    f"multiple writers {locations}"
+                )
+
+    def queue_srf_write(self, pe, register, value):
+        self.pending_srf_writes.append((pe.col, register, value))
+
+    def commit_srf_writes(self):
+        for col, register, value in self.pending_srf_writes:
+            self.srf[col][register] = value
+        self.pending_srf_writes = []
 
     def run( self, pr, limit ):
         steps = 0
@@ -101,12 +184,14 @@ class CGRA:
 
         return self.memory
     
-    def maxCyclesThisPC(self):
+    def maxCyclesThisPC(self, pc_index=None):
+        if pc_index is None:
+            pc_index = self.instr2exec
         nMemOps = 0
         nMulOps = 0
         for r in range(N_ROWS):
             for c in range(N_COLS):
-                instr =  (self.instrs[self.instr2exec].ops[r][c]).replace(',', ' ').split()
+                instr =  (self.instrs[pc_index].ops[r][c]).replace(',', ' ').split()
                 try:
                     op = instr[0]
                 except:
@@ -130,6 +215,9 @@ class CGRA:
         return maxcycles
                     
     def step( self, prs="ROUT" ):
+        self.validate_srf_cycle()
+        self.srf_snapshot = [bank.copy() for bank in self.srf]
+        self.pending_srf_writes = []
         for r in range(N_ROWS):
             for c in range(N_COLS):
                 self.cells[r][c].update()
@@ -147,7 +235,9 @@ class CGRA:
             reg     = [[ self.cells[r][i].regs[regs[x]]   for i in range(N_COLS) ] for x in range(len(regs)) ]
             print_out( prs, outs, insts, ops, reg )
 
-        ncyclesthisPc = self.maxCyclesThisPC()
+        self.commit_srf_writes()
+        ncyclesthisPc = self.maxCyclesThisPC(instr2exec)
+        self.cycles_by_pc[instr2exec] = self.cycles_by_pc.get(instr2exec, 0) + ncyclesthisPc
         if PRINT_OUTS: print("Aprox cycles this pc: " + str(ncyclesthisPc))
         self.aproxcycles += ncyclesthisPc
         self.instr2exec += 1
@@ -173,39 +263,32 @@ class CGRA:
         return self.cells[n_r][n_c].get_flag( flag )
 
     def load_direct(self, c, incr):
-        ret = -1
-        for row in self.memory:
-            if row[0] == self.load_addr[c]:
-                ret = row[1]
-                break
+        index = self.memory_first_index.get(self.load_addr[c])
+        ret = self.memory[index][1] if index is not None else -1
         self.load_addr[c] += incr
         return ret
 
     def store_direct( self, c, val, incr ):
-        replaced = False
-        # Skip element 0 since it is the title of the column
-        for i in range(0,len(self.memory)):
-            if self.memory[i][0] == self.store_addr[c]:
-                self.memory[i][1] = val
-                replaced = True
-                break
-        if not replaced:
+        index = self.memory_first_index.get(self.store_addr[c])
+        if index is not None:
+            self.memory[index][1] = val
+        else:
             self.memory.append([self.store_addr[c], val])
+            self.memory_first_index[self.store_addr[c]] = len(self.memory) - 1
         self.store_addr[c] += incr
         return
 
     def load_indirect( self, addr ):
-        for row in self.memory:
-            if row[0] == addr:
-                return row[1]
-        return -1
+        index = self.memory_first_index.get(addr)
+        return self.memory[index][1] if index is not None else -1
 
     def store_indirect( self, addr, val):
-        for i in range(0,len(self.memory)):
-            if self.memory[i][0] == addr:
-                self.memory[i][1] = val
-                return
+        index = self.memory_first_index.get(addr)
+        if index is not None:
+            self.memory[index][1] = val
+            return
         self.memory.append([addr, val])
+        self.memory_first_index[addr] = len(self.memory) - 1
         return
 
 class PE:
@@ -237,6 +320,8 @@ class PE:
             return int( self.old_out)
         if val == 'ZERO':
             return 0
+        if re.fullmatch(r'SRF[0-7]', val):
+            return int(self.parent.srf_snapshot[self.col][val])
         if val in self.regs:
             return int( self.regs[val])
         return int(self.parent.get_neighbour_out( self.row, self.col, val ))
@@ -272,7 +357,9 @@ class PE:
             ret     = self.ops_arith[self.op]( val1, val2)
             #if (self.op == 'SMUL'):
             #    print("ret = ", ret, ", val1 = ", val1, ", val2 = ", val2, ", des = ", des, ", instr[2] =", instr[2], ", instr[3] =", instr[3] )
-            if des in self.regs: self.regs[des] = ret
+            if re.fullmatch(r'SRF[0-7]', des):
+                self.parent.queue_srf_write(self, des, ret)
+            elif des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_cond:
@@ -282,7 +369,9 @@ class PE:
             src     = instr[4]
             method  = self.ops_cond[self.op]
             ret     = method(self, val1, val2, src)
-            if des in self.regs: self.regs[des] = ret
+            if re.fullmatch(r'SRF[0-7]', des):
+                self.parent.queue_srf_write(self, des, ret)
+            elif des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_branch:
@@ -297,7 +386,9 @@ class PE:
             des = instr[1]
             incr = self.fetch_val(instr[2])
             ret = self.parent.load_direct( self.col, incr )
-            if des in self.regs: self.regs[des] = ret
+            if re.fullmatch(r'SRF[0-7]', des):
+                self.parent.queue_srf_write(self, des, ret)
+            elif des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_swd:
@@ -309,7 +400,9 @@ class PE:
             des = instr[1]
             addr = self.fetch_val( instr[2] )
             ret = self.parent.load_indirect(addr)
-            if des in self.regs: self.regs[des] = ret
+            if re.fullmatch(r'SRF[0-7]', des):
+                self.parent.queue_srf_write(self, des, ret)
+            elif des in self.regs: self.regs[des] = ret
             self.out = ret
 
         elif self.op in self.ops_swi:
@@ -443,7 +536,7 @@ def estimatedConfigCycles( kernel, version=""):
     return len(instrs)*N_COLS
 
 
-def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=None, printVal=1 ):
+def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=None, printVal=1, srf_init=None, return_cgra=False ):
     global PRINT_OUTS
     PRINT_OUTS = printVal
     ker = []
@@ -473,7 +566,7 @@ def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=
                 return None
     
     # Run the kernel
-    cgra = CGRA(ker, mem, load_addrs, store_addrs)
+    cgra = CGRA(ker, mem, load_addrs, store_addrs, srf_init=srf_init)
     mem = cgra.run(pr, limit)
 
     # Store the output sorted
@@ -482,4 +575,6 @@ def run( kernel, version="", pr="ROUT", limit=100, load_addrs=None, store_addrs=
         for row in sorted_mem: csv.writer(f).writerow(row)
 
     print("END")
+    if return_cgra:
+        return cgra
 

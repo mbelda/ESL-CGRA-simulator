@@ -1,0 +1,13 @@
+matrix_size,version,alpha,beta,input_scheme,input_sha256,command,total_simulated_cycles,correct_elements,total_elements,validation
+16x16,original,125,14,"A=i; B=i+100; C=i+200, row-major",6d2420fd7f85df34b27fedb8981dbc5d6fd5b8adee6e1479ed29b83eaa479b85,python3 benchmarks/DISCOvsOE/gemm/run.py --size 16 --version original,5363,256,256,PASS
+16x16,srf_offsets,125,14,"A=i; B=i+100; C=i+200, row-major",6d2420fd7f85df34b27fedb8981dbc5d6fd5b8adee6e1479ed29b83eaa479b85,python3 benchmarks/DISCOvsOE/gemm/run.py --size 16 --version srf_offsets,5339,256,256,PASS
+16x16,srf_base,125,14,"A=i; B=i+100; C=i+200, row-major",6d2420fd7f85df34b27fedb8981dbc5d6fd5b8adee6e1479ed29b83eaa479b85,python3 benchmarks/DISCOvsOE/gemm/run.py --size 16 --version srf_base,5323,256,256,PASS
+32x32,original,125,14,"A=i; B=i+100; C=i+200, row-major",bf23c0dfa3e3163f6517c2911ea2a6399b8b53ea5a3e5166c969a227df151192,python3 benchmarks/DISCOvsOE/gemm/run.py --size 32 --version original,37319,1024,1024,PASS
+32x32,srf_offsets,125,14,"A=i; B=i+100; C=i+200, row-major",bf23c0dfa3e3163f6517c2911ea2a6399b8b53ea5a3e5166c969a227df151192,python3 benchmarks/DISCOvsOE/gemm/run.py --size 32 --version srf_offsets,37247,1024,1024,PASS
+32x32,srf_base,125,14,"A=i; B=i+100; C=i+200, row-major",bf23c0dfa3e3163f6517c2911ea2a6399b8b53ea5a3e5166c969a227df151192,python3 benchmarks/DISCOvsOE/gemm/run.py --size 32 --version srf_base,37231,1024,1024,PASS
+64x64,original,125,14,"A=i; B=i+100; C=i+200, row-major",02a7b2ab391a0994ee9d7abfa5b7a715437a3ab503788293556cb4b401f0415c,python3 benchmarks/DISCOvsOE/gemm/run.py --size 64 --version original,279791,4096,4096,PASS
+64x64,srf_offsets,125,14,"A=i; B=i+100; C=i+200, row-major",02a7b2ab391a0994ee9d7abfa5b7a715437a3ab503788293556cb4b401f0415c,python3 benchmarks/DISCOvsOE/gemm/run.py --size 64 --version srf_offsets,279527,4096,4096,PASS
+64x64,srf_base,125,14,"A=i; B=i+100; C=i+200, row-major",02a7b2ab391a0994ee9d7abfa5b7a715437a3ab503788293556cb4b401f0415c,python3 benchmarks/DISCOvsOE/gemm/run.py --size 64 --version srf_base,279511,4096,4096,PASS
+128x128,original,125,14,"A=i; B=i+100; C=i+200, row-major",4a217dc3b2b9e256039fff8683b53b30c4b8d0fa7396e18f2aec795d985d4773,python3 benchmarks/DISCOvsOE/gemm/run.py --size 128 --version original,2167103,16384,16384,PASS
+128x128,srf_offsets,125,14,"A=i; B=i+100; C=i+200, row-major",4a217dc3b2b9e256039fff8683b53b30c4b8d0fa7396e18f2aec795d985d4773,python3 benchmarks/DISCOvsOE/gemm/run.py --size 128 --version srf_offsets,2166071,16384,16384,PASS
+128x128,srf_base,125,14,"A=i; B=i+100; C=i+200, row-major",4a217dc3b2b9e256039fff8683b53b30c4b8d0fa7396e18f2aec795d985d4773,python3 benchmarks/DISCOvsOE/gemm/run.py --size 128 --version srf_base,2166055,16384,16384,PASS

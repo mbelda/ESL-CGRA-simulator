@@ -1,0 +1,5 @@
+matrix_size,previous_offsets_cycles,optimized_offsets_cycles,total_cycles_saved,static_config_cycles_saved,kernel_execution_cycles_saved,input_sha256,previous_validation,optimized_validation,previous_run
+16x16,5339,5251,88,12,76,1df58a41c698cb13908d167182f1c15f342b63c5bfd4f23f756173c4c78ed900,PASS,PASS,run_precombined.py --size 16 --version srf_offsets; old instruction stream copied to isolated temp run
+32x32,37247,36955,292,12,280,604b40dbbf188119894f61740404626607c463dea3259aebeae17c3d085d9bf7,PASS,PASS,run_precombined.py --size 32 --version srf_offsets; old instruction stream copied to isolated temp run
+64x64,279527,278443,1084,12,1072,9dbb668aa8e2c668c96e6e97ec5165efbc57da4580da62db0be66c8f0aff0352,PASS,PASS,run_precombined.py --size 64 --version srf_offsets; old instruction stream copied to isolated temp run
+128x128,2166071,2161867,4204,12,4192,47920f195d0715072e39e43af4853f16df0a3b179b9d2212f48649ebdd5caad3,PASS,PASS,run_precombined.py --size 128 --version srf_offsets; old instruction stream copied to isolated temp run
