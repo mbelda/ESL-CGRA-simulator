@@ -1,0 +1,162 @@
+[
+  {
+    "benchmark": "MMUL",
+    "size": 16,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 276,
+    "control_taken_branches": 255,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "8cbbf5a6ce167fc4bcb310748620d4302be684ad17201756cc14a0c0155fc69c",
+      "OE Simple Address + LCU global": "676090ceb4ea341f93f332a2a85c596ba83208bbb0c5955fdd5b943faac598b3",
+      "OE Simple Address + 4 LCUs": "676090ceb4ea341f93f332a2a85c596ba83208bbb0c5955fdd5b943faac598b3"
+    },
+    "direct_access_trace_sha256": [
+      "7bdde1f5b71c68e74f2aeb4e7f5d847292f618acb47fb407476e5e1ea80d025e"
+    ]
+  },
+  {
+    "benchmark": "MMUL",
+    "size": 32,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 2120,
+    "control_taken_branches": 2047,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "afb21b8fa92f9bca9d504ed9c0fcdcc430e44a5b4489b8bcaf66497f039cc7eb",
+      "OE Simple Address + LCU global": "5364bfc1fdc4336384d1ee587c403c620434a784ad7ee32c31496c2b556463d2",
+      "OE Simple Address + 4 LCUs": "5364bfc1fdc4336384d1ee587c403c620434a784ad7ee32c31496c2b556463d2"
+    },
+    "direct_access_trace_sha256": [
+      "cc2af721df44f88a8352a16b69a3bca4ed7ec76dbbe68e66658914f06b6c6ca0"
+    ]
+  },
+  {
+    "benchmark": "MMUL",
+    "size": 64,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 16656,
+    "control_taken_branches": 16383,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "d0ddfbb9bedeb02d850dda67ae5e4e0698765cce5fe55dce7bf5d3b74d27a9fc",
+      "OE Simple Address + LCU global": "7884ebb94ffe88394b697001d78e2fc9b95cc8c05731e6e967bccc1802d21865",
+      "OE Simple Address + 4 LCUs": "7884ebb94ffe88394b697001d78e2fc9b95cc8c05731e6e967bccc1802d21865"
+    },
+    "direct_access_trace_sha256": [
+      "b29d154c26870acb530f0bdeb1daf6b5f08c7b4e5c714af498054aa2b683e32d"
+    ]
+  },
+  {
+    "benchmark": "MMUL",
+    "size": 128,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 132128,
+    "control_taken_branches": 131071,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "4a7d8a95b02510a5aa1018ae0a48c61f9a11be823ca8ab9dbad01cfdd21c0097",
+      "OE Simple Address + LCU global": "890dcca9db9718d090540114b95b238c0611b286523aa0b17252c01b60b0c368",
+      "OE Simple Address + 4 LCUs": "890dcca9db9718d090540114b95b238c0611b286523aa0b17252c01b60b0c368"
+    },
+    "direct_access_trace_sha256": [
+      "e54bead45ac3983e77e3e38025f1226db25689c49ffff01f1db89b730b8859e8"
+    ]
+  },
+  {
+    "benchmark": "GEM",
+    "size": 16,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 276,
+    "control_taken_branches": 255,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "0e46777ec36d1eb3b7693c04bc72594b7a2e977b04c9ff1b9f511dd4fe093fdf",
+      "OE Simple Address + LCU global": "0e46777ec36d1eb3b7693c04bc72594b7a2e977b04c9ff1b9f511dd4fe093fdf",
+      "OE Simple Address + 4 LCUs": "0e46777ec36d1eb3b7693c04bc72594b7a2e977b04c9ff1b9f511dd4fe093fdf"
+    },
+    "direct_access_trace_sha256": [
+      "01a5927dd1fdfa9f965b70b33b5e31bcaa4abd4f56e5ad21bc7c451046cee361"
+    ]
+  },
+  {
+    "benchmark": "GEM",
+    "size": 32,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 2120,
+    "control_taken_branches": 2047,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "e525427cae1c39a4341a97d527a120bb1468d9342859880e1707de518517612f",
+      "OE Simple Address + LCU global": "e525427cae1c39a4341a97d527a120bb1468d9342859880e1707de518517612f",
+      "OE Simple Address + 4 LCUs": "e525427cae1c39a4341a97d527a120bb1468d9342859880e1707de518517612f"
+    },
+    "direct_access_trace_sha256": [
+      "d9035813fbd06ea12545f6d010fb120e3d452e26fc6b1218acb741d5f9e352cc"
+    ]
+  },
+  {
+    "benchmark": "GEM",
+    "size": 64,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 16656,
+    "control_taken_branches": 16383,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "62a2c8843078ddf2d2722356af0630747add1a16a55fb2bd966df171f1c42601",
+      "OE Simple Address + LCU global": "62a2c8843078ddf2d2722356af0630747add1a16a55fb2bd966df171f1c42601",
+      "OE Simple Address + 4 LCUs": "62a2c8843078ddf2d2722356af0630747add1a16a55fb2bd966df171f1c42601"
+    },
+    "direct_access_trace_sha256": [
+      "1e34229f54bdb8c61a31c9ce301967f723a09a2c1787a547d2b76029b622ac1f"
+    ]
+  },
+  {
+    "benchmark": "GEM",
+    "size": 128,
+    "simple_direct_streams_match_across_lcu_modes": true,
+    "direct_load_sequence_matches_original_indirect_trace": true,
+    "direct_store_sequence_matches_original_indirect_trace": true,
+    "direct_pointer_endpoints_validated": true,
+    "loop_branch_counts_match_across_simple_modes": true,
+    "loop_branch_counts_match_per_original_pc": true,
+    "control_branch_events": 132128,
+    "control_taken_branches": 131071,
+    "simple_program_control_trace_hashes": {
+      "OE Simple Address": "f67b4dde28f51c86546fd02dc36f092ecb41272311e7f5d3aa3e1bedbd0c1a91",
+      "OE Simple Address + LCU global": "f67b4dde28f51c86546fd02dc36f092ecb41272311e7f5d3aa3e1bedbd0c1a91",
+      "OE Simple Address + 4 LCUs": "f67b4dde28f51c86546fd02dc36f092ecb41272311e7f5d3aa3e1bedbd0c1a91"
+    },
+    "direct_access_trace_sha256": [
+      "1dba715c8b4dda6beda15e63f196cbd76bc70c8ac84b8e38c2f6121df97756b6"
+    ]
+  }
+]
