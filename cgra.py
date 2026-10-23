@@ -2,6 +2,7 @@ import numpy as np
 from ctypes import c_int32
 import csv
 import os.path
+from dataclasses import dataclass
 
 from kernels import *
 
@@ -19,6 +20,296 @@ MAX_32b = 0xFFFFFFFF
 srcs    = ['ZERO', 'SELF', 'RCL', 'RCR', 'RCT', 'RCB', 'R0', 'R1', 'R2', 'R3', 'IMM']
 dsts    = ['SELF', 'RCL', 'RCR', 'RCT', 'RCB', 'R0', 'R1', 'R2', 'R3']
 regs    = dsts[-4:]
+
+
+@dataclass(frozen=True)
+class ArchitectureProfile:
+    """Geometry for the optional, LCU-equipped OpenEdge experiments.
+
+    ``compute_cols`` counts only conventional RC columns.  On an LCU profile,
+    one additional physical column per row is reserved for the LCU and is not
+    part of the arithmetic neighbour network.
+    """
+    name: str
+    rows: int
+    compute_cols: int
+    lcu_per_row: bool = False
+
+    @property
+    def physical_cols(self):
+        return self.compute_cols + int(self.lcu_per_row)
+
+
+ARCHITECTURES = {
+    "OE_4x4": ArchitectureProfile("OE_4x4", 4, 4, False),
+    "OE_2x5_LCU": ArchitectureProfile("OE_2x5_LCU", 2, 4, True),
+    "OE_5x5_LCU": ArchitectureProfile("OE_5x5_LCU", 5, 4, True),
+    # Matched-compute controls for estimating the LCU's contribution apart
+    # from changing the number of arithmetic RCs.
+    "OE_2x4_REF": ArchitectureProfile("OE_2x4_REF", 2, 4, False),
+    "OE_5x4_REF": ArchitectureProfile("OE_5x4_REF", 5, 4, False),
+}
+
+
+@dataclass
+class HeterogeneousPC:
+    """One lockstep PC: one instruction per compute RC and optional LCU ops.
+
+    ``pe_ops`` is a rows-by-compute-columns matrix of instruction strings.
+    ``lcu_ops`` contains one instruction string per row, or ``None``.  LCU
+    instructions use the same ALU/branch spelling as PE instructions and
+    four private registers (R0--R3) per LCU.
+    """
+    pe_ops: list
+    lcu_ops: list = None
+
+
+class LCU:
+    """One-cycle LCU context with four registers and a PC-local ALU/branch.
+
+    Arithmetic, compare and branch resolve within the issued PC, like the
+    combinational LCU datapath/PC branch path in DISCO.  The simulator issues
+    an LCU operation concurrently with that PC's PE instructions; the LCU
+    still consumes the PC's cycle and never runs while the CGRA PC is stalled.
+    """
+    def __init__(self, row):
+        self.row = row
+        self.regs = {"R0": 0, "R1": 0, "R2": 0, "R3": 0}
+
+    def fetch(self, token):
+        if token in self.regs:
+            return self.regs[token]
+        if token == "ZERO":
+            return 0
+        try:
+            return int(token, 0)
+        except ValueError as exc:
+            raise ValueError(f"LCU row {self.row}: invalid operand {token!r}") from exc
+
+    def execute(self, text, pc):
+        if text is None or not str(text).strip() or str(text).strip().upper() == "NOP":
+            return None
+        words = str(text).replace(",", " ").split()
+        op = words[0].upper()
+        if op in ("SADD", "SSUB"):
+            if len(words) != 4 or words[1] not in self.regs:
+                raise ValueError(f"LCU row {self.row}: malformed {text!r}")
+            a, b = self.fetch(words[2]), self.fetch(words[3])
+            value = a + b if op == "SADD" else a - b
+            self.regs[words[1]] = c_int32(value).value
+            return None
+        if op in ("BEQ", "BNE", "BLT", "BGE"):
+            if len(words) != 4:
+                raise ValueError(f"LCU row {self.row}: malformed {text!r}")
+            a, b, target = self.fetch(words[1]), self.fetch(words[2]), self.fetch(words[3])
+            taken = {"BEQ": a == b, "BNE": a != b,
+                     "BLT": a < b, "BGE": a >= b}[op]
+            return target if taken else None
+        if op == "JUMP":
+            if len(words) != 3:
+                raise ValueError(f"LCU row {self.row}: expected JUMP base offset")
+            return self.fetch(words[1]) + self.fetch(words[2])
+        raise ValueError(f"LCU row {self.row}: unsupported instruction {op!r}")
+
+
+class HeterogeneousCGRA:
+    """Lockstep OpenEdge-like compute mesh with one LCU context per row.
+
+    The LCU is a separate control endpoint, not an arithmetic RC.  Its
+    operations are co-issued with the corresponding compute PC and evaluated
+    once per modeled PC cycle.  All row LCUs must agree on a branch target;
+    divergence is an error rather than an implicit row-local PC fork.
+    """
+    def __init__(self, architecture, program, memory=None,
+                 read_addrs=None, write_addrs=None):
+        if isinstance(architecture, str):
+            try:
+                architecture = ARCHITECTURES[architecture]
+            except KeyError as exc:
+                raise ValueError(f"Unknown architecture {architecture!r}") from exc
+        self.architecture = architecture
+        self.rows = architecture.rows
+        self.compute_cols = architecture.compute_cols
+        self.instrs = list(program)
+        self.cells = [[PE(self, r, c) for c in range(self.compute_cols)]
+                      for r in range(self.rows)]
+        self.lcus = ([LCU(r) for r in range(self.rows)]
+                     if architecture.lcu_per_row else [])
+        self.memory = memory if memory is not None else []
+        self.memory_index = {}
+        for index, row in enumerate(self.memory):
+            self.memory_index.setdefault(row[0], index)
+        self.load_addr = list(read_addrs or [0] * self.compute_cols)
+        self.store_addr = list(write_addrs or [0] * self.compute_cols)
+        if len(self.load_addr) != self.compute_cols or len(self.store_addr) != self.compute_cols:
+            raise ValueError("Direct memory pointers must have one entry per compute column")
+        self.instr2exec = 0
+        self.aproxcycles = 0
+        self.aproxMemCycles = 0
+        self.aproxArithCycles = 0
+        self.exit = False
+        self.cycles = 0
+        self.lcu_operations = 0
+        self.lcu_branch_operations = 0
+        self.lcu_taken_branches = 0
+        self.lcu_issue_pcs = 0
+
+    def get_neighbour_address(self, r, c, direction):
+        # LCUs are not RC neighbours.  Wrap-around applies only to the
+        # rows-by-four compute mesh, including top/bottom links.
+        if direction == "RCL": c = (c - 1) % self.compute_cols
+        elif direction == "RCR": c = (c + 1) % self.compute_cols
+        elif direction == "RCT": r = (r - 1) % self.rows
+        elif direction == "RCB": r = (r + 1) % self.rows
+        else: raise ValueError(f"Unknown neighbour direction {direction!r}")
+        return r, c
+
+    def get_neighbour_out(self, r, c, direction):
+        nr, nc = self.get_neighbour_address(r, c, direction)
+        return self.cells[nr][nc].get_out()
+
+    def get_neighbour_flag(self, r, c, direction, flag):
+        nr, nc = self.get_neighbour_address(r, c, direction)
+        return self.cells[nr][nc].get_flag(flag)
+
+    def load_direct(self, col, increment):
+        return _dynamic_load_direct(self, col, increment)
+
+    def store_direct(self, col, value, increment):
+        _dynamic_store_direct(self, col, value, increment)
+
+    def load_indirect(self, address):
+        index = self.memory_index.get(address)
+        return self.memory[index][1] if index is not None else -1
+
+    def store_indirect(self, address, value):
+        index = self.memory_index.get(address)
+        if index is not None:
+            self.memory[index][1] = value
+            return
+        self.memory_index[address] = len(self.memory)
+        self.memory.append([address, value])
+
+    def _this_pc_latency(self, pc):
+        n_mem = n_mul = 0
+        for row in pc.pe_ops:
+            if len(row) != self.compute_cols:
+                raise ValueError("Each PE instruction row must match compute_cols")
+            for text in row:
+                tokens = str(text or "").replace(",", " ").split()
+                if tokens and tokens[0].upper() in ("LWD", "LWI", "SWD", "SWI"):
+                    n_mem += 1
+                if tokens and tokens[0].upper() == "SMUL":
+                    n_mul += 1
+        # Preserve cgra.py's established PE latency abstraction.  One LCU
+        # ALU/branch operation takes one cycle and is co-issued with this PC.
+        latency = max(1, 1 + n_mem if n_mem else 1, 3 if n_mul else 1)
+        if n_mem:
+            self.aproxMemCycles += 1 + n_mem
+        else:
+            self.aproxArithCycles += latency
+        return latency
+
+    def step(self):
+        if self.exit:
+            return True
+        if self.instr2exec == len(self.instrs):
+            self.exit = True
+            return True
+        if not 0 <= self.instr2exec < len(self.instrs):
+            raise RuntimeError(f"PC {self.instr2exec} is outside the program")
+        pc = self.instrs[self.instr2exec]
+        if len(pc.pe_ops) != self.rows:
+            raise ValueError("PE instruction matrix row count does not match architecture")
+        lcu_ops = pc.lcu_ops if pc.lcu_ops is not None else [None] * self.rows
+        if len(lcu_ops) != self.rows:
+            raise ValueError("There must be one LCU command slot per row")
+        if not self.architecture.lcu_per_row and any(lcu_ops):
+            raise ValueError("This architecture profile has no LCU")
+
+        for row in self.cells:
+            for cell in row:
+                cell.update()
+        pe_targets = []
+        for r in range(self.rows):
+            for c in range(self.compute_cols):
+                text = pc.pe_ops[r][c] or "NOP"
+                opcode = str(text).replace(",", " ").split()
+                is_branch = bool(opcode and opcode[0].upper() in
+                                 ("BEQ", "BNE", "BLT", "BGE", "JUMP"))
+                if is_branch and self.architecture.lcu_per_row:
+                    raise ValueError("Loop/branch instructions belong in the LCU column")
+                branch, exit_seen = self.cells[r][c].exec(text)
+                if branch:
+                    pe_targets.append(int(branch))
+                self.exit = self.exit or bool(exit_seen)
+
+        targets = []
+        if self.architecture.lcu_per_row:
+            for r, command in enumerate(lcu_ops):
+                if command is not None and str(command).strip().upper() != "NOP":
+                    self.lcu_operations += 1
+                    if str(command).replace(",", " ").split()[0].upper() in (
+                            "BEQ", "BNE", "BLT", "BGE", "JUMP"):
+                        self.lcu_branch_operations += 1
+                targets.append(self.lcus[r].execute(command, self.instr2exec))
+            if any(command is not None and str(command).strip().upper() != "NOP"
+                   for command in lcu_ops):
+                self.lcu_issue_pcs += 1
+        taken = [target for target in targets if target is not None]
+        self.lcu_taken_branches += len(taken)
+        if taken and (len(taken) != self.rows or len(set(taken)) != 1):
+            raise RuntimeError(f"LCU branch divergence at PC {self.instr2exec}: {targets}")
+        if pe_targets and self.architecture.lcu_per_row:
+            raise RuntimeError("PE branches cannot control an LCU-equipped profile")
+        if pe_targets and (len(set(pe_targets)) != 1 or taken):
+            raise RuntimeError(f"Control branch conflict at PC {self.instr2exec}")
+
+        latency = self._this_pc_latency(pc)
+        if any(command is not None and str(command).strip().upper() != "NOP"
+               for command in lcu_ops):
+            self.aproxArithCycles += 0  # LCU work overlaps but remains cycle-charged by max().
+        self.aproxcycles += latency
+        self.cycles += 1
+        self.instr2exec = (taken[0] if taken else
+                           pe_targets[0] if pe_targets else self.instr2exec + 1)
+        return self.exit
+
+    def run(self, limit=1_000_000):
+        while not self.step():
+            if self.cycles > limit:
+                raise RuntimeError(f"Execution limit reached ({limit} PCs)")
+        config_cycles = len(self.instrs) * self.architecture.physical_cols
+        return {
+            "memory": self.memory,
+            "execution_cycles": self.aproxcycles,
+            "configuration_cycles": config_cycles,
+            "total_cycles": self.aproxcycles + config_cycles,
+            "memory_cycles": self.aproxMemCycles,
+            "arithmetic_cycles": self.aproxArithCycles,
+            "pcs_executed": self.cycles,
+            "lcu_operations": self.lcu_operations,
+            "lcu_branch_operations": self.lcu_branch_operations,
+            "lcu_taken_branches": self.lcu_taken_branches,
+            "lcu_issue_pcs": self.lcu_issue_pcs,
+        }
+
+
+def _dynamic_load_direct(parent, col, increment):
+    index = parent.memory_index.get(parent.load_addr[col])
+    value = parent.memory[index][1] if index is not None else -1
+    parent.load_addr[col] += increment
+    return value
+
+
+def _dynamic_store_direct(parent, col, value, increment):
+    index = parent.memory_index.get(parent.store_addr[col])
+    if index is not None:
+        parent.memory[index][1] = value
+    else:
+        parent.memory_index[parent.store_addr[col]] = len(parent.memory)
+        parent.memory.append([parent.store_addr[col], value])
+    parent.store_addr[col] += increment
 
 class INSTR:
     def __init__( self,matrix):
@@ -67,6 +358,9 @@ class CGRA:
             self.cells.append(list)
         self.instrs     = ker_parse( kernel )
         self.memory     = memory
+        self.memory_index = {}
+        for index, row in enumerate(self.memory):
+            self.memory_index.setdefault(row[0], index)
         self.instr2exec = 0
         self.cycles     = 0
         self.aproxcycles = 0
@@ -173,38 +467,31 @@ class CGRA:
         return self.cells[n_r][n_c].get_flag( flag )
 
     def load_direct(self, c, incr):
-        ret = -1
-        for row in self.memory:
-            if row[0] == self.load_addr[c]:
-                ret = row[1]
-                break
+        index = self.memory_index.get(self.load_addr[c])
+        ret = self.memory[index][1] if index is not None else -1
         self.load_addr[c] += incr
         return ret
 
     def store_direct( self, c, val, incr ):
-        replaced = False
-        # Skip element 0 since it is the title of the column
-        for i in range(0,len(self.memory)):
-            if self.memory[i][0] == self.store_addr[c]:
-                self.memory[i][1] = val
-                replaced = True
-                break
-        if not replaced:
+        index = self.memory_index.get(self.store_addr[c])
+        if index is not None:
+            self.memory[index][1] = val
+        else:
+            self.memory_index[self.store_addr[c]] = len(self.memory)
             self.memory.append([self.store_addr[c], val])
         self.store_addr[c] += incr
         return
 
     def load_indirect( self, addr ):
-        for row in self.memory:
-            if row[0] == addr:
-                return row[1]
-        return -1
+        index = self.memory_index.get(addr)
+        return self.memory[index][1] if index is not None else -1
 
     def store_indirect( self, addr, val):
-        for i in range(0,len(self.memory)):
-            if self.memory[i][0] == addr:
-                self.memory[i][1] = val
-                return
+        index = self.memory_index.get(addr)
+        if index is not None:
+            self.memory[index][1] = val
+            return
+        self.memory_index[addr] = len(self.memory)
         self.memory.append([addr, val])
         return
 
