@@ -395,12 +395,17 @@ class CGRA:
 
         return self.memory
     
-    def maxCyclesThisPC(self):
+    def maxCyclesThisPC(self, pc_index=None):
         nMemOps = 0
         nMulOps = 0
+        # A taken branch updates ``self.instr2exec`` while the current PC is
+        # being issued.  Latency still belongs to the PC that was just
+        # executed, so callers pass its saved index explicitly.
+        if pc_index is None:
+            pc_index = self.instr2exec
         for r in range(N_ROWS):
             for c in range(N_COLS):
-                instr =  (self.instrs[self.instr2exec].ops[r][c]).replace(',', ' ').split()
+                instr =  (self.instrs[pc_index].ops[r][c]).replace(',', ' ').split()
                 try:
                     op = instr[0]
                 except:
@@ -441,7 +446,7 @@ class CGRA:
             reg     = [[ self.cells[r][i].regs[regs[x]]   for i in range(N_COLS) ] for x in range(len(regs)) ]
             print_out( prs, outs, insts, ops, reg )
 
-        ncyclesthisPc = self.maxCyclesThisPC()
+        ncyclesthisPc = self.maxCyclesThisPC(instr2exec)
         if PRINT_OUTS: print("Aprox cycles this pc: " + str(ncyclesthisPc))
         self.aproxcycles += ncyclesthisPc
         self.instr2exec += 1
